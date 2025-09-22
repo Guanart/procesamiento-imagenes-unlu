@@ -1,0 +1,6 @@
+Flask
+Pillow
+numpy
+matplotlib
+opencv-python
+ExifRead

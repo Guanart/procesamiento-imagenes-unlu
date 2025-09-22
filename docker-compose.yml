@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development  # TODO: Cambiar a production para despliegue
+      - FLASK_APP=app.py
+      - SECRET_KEY=${SECRET_KEY:-tu-clave-secreta-por-defecto}  # TODO: Usar secrets manager
+    volumes:
+      - ./uploads:/app/uploads  # Persistir uploads localmente
+      # TODO: Usar volumen named para producción
+      # - uploads_data:/app/uploads
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # TODO: Añadir servicio de base de datos si se requiere persistencia
+  # postgres:
+  #   image: postgres:15
+  #   environment:
+  #     POSTGRES_DB: image_analysis
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - app-network
+
+  # TODO: Añadir servicio Redis para caché y colas
+  # redis:
+  #   image: redis:7-alpine
+  #   networks:
+  #     - app-network
+
+  # TODO: Añadir proxy nginx para producción
+  # nginx:
+  #   image: nginx:alpine
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf
+  #     - ./ssl:/etc/ssl
+  #   depends_on:
+  #     - web
+  #   networks:
+  #     - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+# TODO: Definir volúmenes nombrados para producción
+# volumes:
+#   uploads_data:
+#   postgres_data:
