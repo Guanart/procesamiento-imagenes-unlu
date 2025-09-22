@@ -1,0 +1,40 @@
+# Excluir archivos innecesarios del contexto Docker
+.git
+.gitignore
+README.md
+.env
+.venv
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.DS_Store
+Thumbs.db
+
+# Archivos temporales de uploads (se crean en runtime)
+uploads/*
+!uploads/.gitkeep
+
+# Archivos de desarrollo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo

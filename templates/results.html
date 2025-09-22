@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}Resultados del Análisis - {{ filename }}{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Header with back button -->
+    <div class="mb-8 flex items-center justify-between">
+        <h2 class="text-3xl font-bold text-gray-800">Resultados del Análisis</h2>
+        <a href="/" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200">
+            ← Analizar otra imagen
+        </a>
+    </div>
+
+    <!-- Image Preview -->
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+        <h3 class="text-xl font-semibold text-gray-800 mb-4">Imagen Analizada: {{ filename }}</h3>
+        <div class="text-center">
+            <img src="data:image/png;base64,{{ image_data }}" 
+                 alt="{{ filename }}" 
+                 class="max-w-full h-auto mx-auto rounded-lg shadow-md">
+        </div>
+    </div>
+
+    <!-- Results Grid -->
+    <div class="grid lg:grid-cols-2 gap-8">
+        <!-- Metadata Section -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h3 class="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-unlu-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Metadatos de la Imagen
+            </h3>
+            
+            <!-- Basic Info -->
+            <div class="mb-6">
+                <h4 class="text-lg font-medium text-gray-700 mb-3">Información Básica</h4>
+                <div class="space-y-2">
+                    <div class="flex justify-between py-1 border-b border-gray-200">
+                        <span class="text-gray-600">Formato:</span>
+                        <span class="font-medium">{{ metadata.formato or 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-gray-200">
+                        <span class="text-gray-600">Modo:</span>
+                        <span class="font-medium">{{ metadata.modo or 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-gray-200">
+                        <span class="text-gray-600">Dimensiones:</span>
+                        <span class="font-medium">{{ metadata.ancho }} x {{ metadata.alto }} px</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-gray-200">
+                        <span class="text-gray-600">Tamaño:</span>
+                        <span class="font-medium">{{ metadata.tamaño[0] }} x {{ metadata.tamaño[1] }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EXIF Data -->
+            {% if metadata.exif or metadata.exif_detallado %}
+            <div class="mb-6">
+                <h4 class="text-lg font-medium text-gray-700 mb-3">Datos EXIF</h4>
+                <div class="max-h-64 overflow-y-auto bg-gray-50 rounded-lg p-4">
+                    {% if metadata.exif_detallado %}
+                        {% for key, value in metadata.exif_detallado.items() %}
+                            <div class="flex justify-between py-1 text-sm border-b border-gray-300">
+                                <span class="text-gray-600 truncate mr-2">{{ key }}:</span>
+                                <span class="font-medium text-right">{{ value[:50] }}{% if value|length > 50 %}...{% endif %}</span>
+                            </div>
+                        {% endfor %}
+                    {% elif metadata.exif %}
+                        {% for key, value in metadata.exif.items() %}
+                            <div class="flex justify-between py-1 text-sm border-b border-gray-300">
+                                <span class="text-gray-600 truncate mr-2">{{ key }}:</span>
+                                <span class="font-medium text-right">{{ value[:50] }}{% if value|length > 50 %}...{% endif %}</span>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div class="flex">
+                    <svg class="w-5 h-5 text-yellow-600 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span class="text-yellow-800">No se encontraron datos EXIF en esta imagen.</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- RGB Analysis Section -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h3 class="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-unlu-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+                Análisis de Canales RGB
+            </h3>
+
+            {% if rgb_analysis.error %}
+            <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div class="flex">
+                    <svg class="w-5 h-5 text-red-600 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span class="text-red-800">Error en el análisis RGB: {{ rgb_analysis.error }}</span>
+                </div>
+            </div>
+            {% else %}
+            
+            <!-- Statistics Tables -->
+            <div class="space-y-6">
+                {% for canal, stats in rgb_analysis.items() %}
+                    {% if canal != 'histograma_grafico' %}
+                    <div>
+                        <h4 class="text-lg font-medium mb-3 flex items-center">
+                            <div class="w-4 h-4 rounded mr-2 {% if canal == 'rojo' %}bg-red-500{% elif canal == 'verde' %}bg-green-500{% else %}bg-blue-500{% endif %}"></div>
+                            Canal {{ canal.title() }}
+                        </h4>
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-gray-600">Mínimo</div>
+                                <div class="font-bold text-lg">{{ stats.minimo }}</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-gray-600">Máximo</div>
+                                <div class="font-bold text-lg">{{ stats.maximo }}</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-gray-600">Media</div>
+                                <div class="font-bold text-lg">{{ "%.2f"|format(stats.media) }}</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-gray-600">Desv. Estándar</div>
+                                <div class="font-bold text-lg">{{ "%.2f"|format(stats.desviacion_estandar) }}</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-gray-600">Mediana</div>
+                                <div class="font-bold text-lg">{{ "%.2f"|format(stats.mediana) }}</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-gray-600">Moda</div>
+                                <div class="font-bold text-lg">{{ stats.moda }} <span class="text-xs text-gray-500">({{ stats.frecuencia_moda }})</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Histogram Section -->
+    {% if rgb_analysis.histograma_grafico %}
+    <div class="bg-white rounded-lg shadow-lg p-6 mt-8">
+        <h3 class="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+            <svg class="w-6 h-6 mr-2 text-unlu-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+            </svg>
+            Histogramas por Canal
+        </h3>
+        <div class="text-center">
+            <img src="data:image/png;base64,{{ rgb_analysis.histograma_grafico }}" 
+                 alt="Histogramas RGB" 
+                 class="max-w-full h-auto mx-auto rounded-lg shadow-md">
+        </div>
+        <p class="text-sm text-gray-600 mt-4 text-center">
+            Los histogramas muestran la distribución de intensidad de cada canal RGB (0-255)
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Additional Information -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mt-8">
+        <h3 class="text-lg font-semibold text-blue-800 mb-4">Información Técnica</h3>
+        <div class="grid md:grid-cols-3 gap-4 text-sm">
+            <div>
+                <h4 class="font-medium text-blue-700 mb-2">Análisis Estadístico</h4>
+                <ul class="text-blue-600 space-y-1">
+                    <li>• Media aritmética por canal</li>
+                    <li>• Desviación estándar</li>
+                    <li>• Valor modal más frecuente</li>
+                    <li>• Rangos de intensidad</li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="font-medium text-blue-700 mb-2">Metadatos EXIF</h4>
+                <ul class="text-blue-600 space-y-1">
+                    <li>• Información de cámara</li>
+                    <li>• Configuración de captura</li>
+                    <li>• Datos de geolocalización</li>
+                    <li>• Timestamps de creación</li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="font-medium text-blue-700 mb-2">Aplicaciones</h4>
+                <ul class="text-blue-600 space-y-1">
+                    <li>• Control de calidad de imagen</li>
+                    <li>• Análisis forense digital</li>
+                    <li>• Procesamiento automático</li>
+                    <li>• Machine learning datasets</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Information -->
+    <div class="bg-gray-100 rounded-lg p-6 mt-8">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">API REST Disponible</h3>
+        <p class="text-gray-600 mb-4">También puedes usar nuestro endpoint API para análisis programático:</p>
+        <div class="bg-gray-800 text-green-400 rounded-lg p-4 font-mono text-sm overflow-x-auto">
+            <div class="mb-2">POST /api/analyze</div>
+            <div class="text-gray-400">Content-Type: multipart/form-data</div>
+            <div class="text-gray-400">Body: file=&lt;imagen&gt;</div>
+            <div class="mt-2 text-yellow-400">→ Retorna JSON con metadatos y análisis RGB</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
