@@ -1,5 +1,16 @@
-Flask==2.3.3
-Pillow==10.0.1
-numpy==1.24.4
-Werkzeug==2.3.7
-matplotlib==3.7.2
+# Flask Web Application
+Flask>=2.3.0
+Pillow>=10.0.0
+numpy>=1.24.0
+Werkzeug>=2.3.0
+matplotlib>=3.7.0
+
+# Dependencias para detección de personas con YOLOv8
+ultralytics>=8.0.0
+opencv-python>=4.8.0
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Dependencias adicionales para compatibilidad
+setuptools>=68.0.0
+wheel>=0.40.0
