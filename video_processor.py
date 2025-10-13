@@ -62,14 +62,14 @@ def load_yolo_model() -> YOLO:
     print(f"   - Clase objetivo: 'person' (ID: {PERSON_CLASS_ID})")
     return model
 
-def extract_person_crops(frame: cv2.Mat, results, frame_number: int) -> int:
+def extract_person_crops(frame: cv2.Mat, results, processed_frame_number: int) -> int:
     """
     Extrae y guarda recortes de todas las personas detectadas en un frame.
     
     Args:
         frame: Frame del video (imagen BGR)
         results: Resultados de la inferencia YOLOv8
-        frame_number: Número del frame actual
+        processed_frame_number: Número secuencial del frame procesado (1, 2, 3...)
         
     Returns:
         int: Número de personas detectadas y guardadas
@@ -98,8 +98,8 @@ def extract_person_crops(frame: cv2.Mat, results, frame_number: int) -> int:
                     person_crop = frame[y1:y2, x1:x2]
                     
                     if person_crop.size > 0:  # Verificar que el recorte no esté vacío
-                        # Generar nombre del archivo
-                        filename = f"frame_{frame_number:06d}_person_{i+1}_conf_{confidence:.2f}.jpg"
+                        # Generar nombre del archivo con contador secuencial
+                        filename = f"frame{processed_frame_number}_person_{i+1}_conf_{confidence:.2f}.jpg"
                         filepath = os.path.join(OUTPUT_DIR, filename)
                         
                         # Guardar el recorte
@@ -132,13 +132,20 @@ def process_video(video_path: str, model: YOLO) -> Tuple[int, int]:
     fps = cap.get(cv2.CAP_PROP_FPS)
     duration = total_frames / fps if fps > 0 else 0
     
+    # Calcular intervalo para 1 frame por segundo
+    frame_interval = max(1, int(fps))  # Saltar frames para obtener ~1 fps
+    frames_to_process = total_frames // frame_interval
+    
     print(f"\n📹 Información del video:")
     print(f"   - Frames totales: {total_frames}")
     print(f"   - FPS: {fps:.2f}")
     print(f"   - Duración: {duration:.2f} segundos")
+    print(f"   - Intervalo de muestreo: 1 frame cada {frame_interval} frames")
+    print(f"   - Frames a procesar: {frames_to_process}")
     print(f"\n🚀 Iniciando procesamiento...")
     
     frame_count = 0
+    processed_frames = 0
     total_persons = 0
     
     try:
@@ -150,25 +157,29 @@ def process_video(video_path: str, model: YOLO) -> Tuple[int, int]:
             
             frame_count += 1
             
-            # Mostrar progreso cada 30 frames
-            if frame_count % 30 == 0 or frame_count == 1:
-                progress = (frame_count / total_frames) * 100
-                print(f"\n🔍 Frame {frame_count}/{total_frames} ({progress:.1f}%)")
-            
-            # Realizar inferencia con YOLOv8
-            # verbose=False para reducir output del modelo
-            results = model(frame, verbose=False)
-            
-            # Extraer y guardar personas detectadas
-            persons_in_frame = extract_person_crops(frame, results, frame_count)
-            total_persons += persons_in_frame
+            # Procesar solo cada frame_interval frames (aproximadamente 1 por segundo)
+            if frame_count % frame_interval == 0:
+                processed_frames += 1
+                
+                # Mostrar progreso
+                if processed_frames % 5 == 0 or processed_frames == 1:
+                    progress = (frame_count / total_frames) * 100
+                    print(f"\n🔍 Frame {frame_count}/{total_frames} ({progress:.1f}%) - Procesado #{processed_frames}")
+                
+                # Realizar inferencia con YOLOv8
+                # verbose=False para reducir output del modelo
+                results = model(frame, verbose=False)
+                
+                # Extraer y guardar personas detectadas (usando contador secuencial)
+                persons_in_frame = extract_person_crops(frame, results, processed_frames)
+                total_persons += persons_in_frame
             
     except KeyboardInterrupt:
         print("\n⚠️  Procesamiento interrumpido por el usuario")
     finally:
         cap.release()
     
-    return frame_count, total_persons
+    return processed_frames, total_persons
 
 def main():
     """
