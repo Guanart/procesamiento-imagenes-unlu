@@ -37,6 +37,13 @@ Este proyecto implementa **dos sistemas integrados** para análisis de imá## �
 - ✅ **Dataset COCO** para máxima precisión en personas
 - ✅ **Preparación Stage 2** para detección de armas en seguridad
 
+### 🔄 Sistema Data Augmentation - Aumento de Dataset
+- ✅ **Aumentación simple y controlada** para armas (cuchillos, pistolas)
+- ✅ **Cuadruplica el dataset** (Original + 3 transformaciones: flips y rotación)
+- ✅ **Orientado a objetos** para un código limpio y encapsulado
+- ✅ **Conserva la estructura de clases** (subdirectorios)
+- ✅ **Limpia el directorio de salida** antes de cada ejecución
+
 **📊 Estado**: ✅ Completamente funcional y probado (Octubre 2025)
 
 ## 🎯 Casos de Uso y Dataset
@@ -52,6 +59,12 @@ Este proyecto implementa **dos sistemas integrados** para análisis de imá## �
 - 🛡️ **Seguridad**: Análisis de videos de vigilancia
 - 📹 **Investigación**: Estudio de comportamiento humano
 - 🎯 **Dataset Generation**: Preparación para Stage 2 (detección de armas)
+
+#### **Data Augmentation (Armas)**:
+- 🔪 **Entrenamiento IA**: Cuadruplicar dataset de cuchillos y pistolas
+- 🎯 **Balanceo de clases**: Igualar cantidad de muestras por tipo
+- 📊 **Mejora de precisión**: Más datos = mejor modelo
+- 🔄 **Automatización**: Generar 4 imágenes por cada original
 
 ### 📁 Formatos y Videos Soportados
 
@@ -139,6 +152,22 @@ python video_processor.py --video input/tu_video.mp4
 ```
 **¿Qué hace?**: Detecta personas automáticamente y extrae sus imágenes frame por frame
 
+### 4️⃣ Sistema Data Augmentation - Aumento de Dataset 🔄
+```bash
+# Organizar dataset por clases (si no está hecho)
+mkdir -p dataset/original/knife dataset/original/pistol
+# cp cuchillo*.jpg dataset/original/knife/
+# cp pistol*.jpg dataset/original/pistol/
+
+# Ejecutar aumentación simple
+# Esto leerá de 'dataset/original' y escribirá en 'dataset/augmented'
+python simple_augmenter.py
+
+# Para especificar directorios
+python simple_augmenter.py --input /ruta/a/tus/imagenes --output /ruta/de/salida
+```
+**¿Qué hace?**: Cuadruplica tu dataset (copia el original y añade 3 transformaciones: flip horizontal, vertical y rotación de 90º).
+
 ### 🐳 Alternativa Docker
 ```bash
 docker-compose up --build
@@ -190,6 +219,7 @@ python video_processor.py \
 - 🔫 Fine-tuning YOLOv8 para detectar armas en personas
 - 🎓 Transfer learning desde detección de personas
 - 📊 Uso de dataset: [DASCI Detección de Armas](https://dasci.es/opendata/deteccion-de-armas-open-data/)
+- 🔄 **Data augmentation implementado**: Expandir dataset a 1500-2000 imágenes/clase
 
 ### **Mejoras Técnicas** ⚡
 - 🌐 Interfaz web unificada (Flask + YOLOv8)

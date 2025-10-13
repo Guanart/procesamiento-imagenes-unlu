@@ -1,0 +1,32 @@
+{
+  "original_images": 0,
+  "generated_images": 0,
+  "by_class": {
+    "pistol": {
+      "original": 5,
+      "generated": 45,
+      "total": 50
+    },
+    "knife": {
+      "original": 5,
+      "generated": 45,
+      "total": 50
+    }
+  },
+  "transformations_applied": {
+    "rotate_15": 5,
+    "rotate_180": 9,
+    "flip_vertical": 6,
+    "rotate_90": 14,
+    "rotate_270": 8,
+    "flip_horizontal": 12,
+    "scale_08": 7,
+    "scale_12": 9,
+    "rotate_30": 6,
+    "rotate_neg15": 7,
+    "bright_contrast": 3,
+    "flip_rot10": 2,
+    "rotate_neg30": 1,
+    "rotate_45": 1
+  }
+}
