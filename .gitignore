@@ -1,6 +1,8 @@
 .history
-#input
+dataset
+input
 output
+teoria
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
