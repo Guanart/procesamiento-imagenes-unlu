@@ -3,6 +3,9 @@ dataset
 input
 output
 teoria
+custom_env
+.venv
+image-transform-app/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
