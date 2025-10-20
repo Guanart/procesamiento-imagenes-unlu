@@ -11,6 +11,10 @@ opencv-python>=4.8.0
 torch>=2.0.0
 torchvision>=0.15.0
 
+# Dependencias para mejora de imágenes y análisis
+scipy>=1.11.0
+tqdm>=4.65.0
+
 # Dependencias adicionales para compatibilidad
 setuptools>=68.0.0
 wheel>=0.40.0

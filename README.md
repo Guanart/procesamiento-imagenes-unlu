@@ -1,6 +1,16 @@
 # 🎯 Procesamiento de Imágenes - Universidad Nacional de Luján
 
-**Sistema completo de procesamiento de imágenes y detección de personas con IA**
+**Sistema completo de procesamiento de imágenes y detección de person### 1️⃣ Sistema Flask - Análisis de Imágenes 🌐
+```bash
+# Ejecutar servidor web
+python app.py
+
+# Abrir navegador en: http://localhost:5000
+# Drag & drop de cualquier imagen (JPG, PNG, BMP)
+```
+**¿Qué hace?**: Analiza canales RGB, genera histogramas, extrae metadatos completos
+
+### 2️⃣ Sistema YOLOv8 - Detección de Personas 🤖
 
 Este proyecto implementa **dos sistemas integrados** para análisis de imá## ⚠️ Limitaciones y Consideraciones
 
@@ -35,6 +45,7 @@ Este proyecto implementa **dos sistemas integrados** para análisis de imá## �
 - ✅ **Extracción inteligente** de imágenes por timestamp
 - ✅ **Modelo YOLOv8n** optimizado para tiempo real
 - ✅ **Dataset COCO** para máxima precisión en personas
+- ✅ **Pipeline de mejora** con interpolación spline y realce de calidad
 - ✅ **Preparación Stage 2** para detección de armas en seguridad
 
 ### 🔄 Sistema Data Augmentation - Aumento de Dataset
@@ -120,17 +131,17 @@ Para cada canal de color (Rojo, Verde, Azul):
 
 ## 🚀 Inicio Rápido
 
-### 1️⃣ Instalar Dependencias
+### 0️⃣ Instalar Dependencias
 ```bash
 # Clonar repositorio
 git clone https://github.com/Guanart/procesamiento-imagenes-unlu.git
 cd procesamiento-imagenes-unlu
 
-# Instalar librerías
+# Instalar librerías (incluyendo scipy y tqdm para mejora de imágenes)
 pip install -r requirements.txt
 ```
 
-### 2️⃣ Sistema Flask - Análisis de Imágenes 🌐
+### 1️⃣ Sistema Flask - Análisis de Imágenes 🌐
 ```bash
 # Ejecutar servidor web
 python app.py
@@ -140,7 +151,7 @@ python app.py
 ```
 **¿Qué hace?**: Analiza canales RGB, genera histogramas, extrae metadatos completos
 
-### 3️⃣ Sistema YOLOv8 - Detección de Personas 🤖
+### 2️⃣ Sistema YOLOv8 - Detección de Personas 🤖
 ```bash
 # Colocar video en carpeta input/
 cp tu_video.mp4 input/
@@ -151,6 +162,19 @@ python video_processor.py --video input/tu_video.mp4
 # Ver personas extraídas en: output/cropped_persons/
 ```
 **¿Qué hace?**: Detecta personas automáticamente y extrae sus imágenes frame por frame
+
+### 3️⃣ Sistema de Mejora de Calidad - Pipeline de Imágenes 🎨
+```bash
+# Mejorar calidad de personas extraídas
+# Aplica interpolación spline, reducción de ruido, realce de nitidez
+python image_enhancer.py
+
+# Las imágenes mejoradas se guardan en: output/enhanced_persons/
+
+# Personalizar tamaños mínimos
+python image_enhancer.py --min-height 250 --min-width 120
+```
+**¿Qué hace?**: Mejora la calidad de las imágenes de personas usando interpolación spline cúbica (redimensionamiento a mínimo 200x100 px), reducción de ruido, realce de nitidez, mejora de contraste (CLAHE) y realce de bordes. Esto prepara las imágenes para el Stage 2 (detección de armas).
 
 ### 4️⃣ Sistema Data Augmentation - Aumento de Dataset 🔄
 ```bash
@@ -167,6 +191,27 @@ python simple_augmenter.py
 python simple_augmenter.py --input /ruta/a/tus/imagenes --output /ruta/de/salida
 ```
 **¿Qué hace?**: Cuadruplica tu dataset (copia el original y añade 3 transformaciones: flip horizontal, vertical y rotación de 90º).
+
+### 5️⃣ Generación de Informe - Análisis del Dataset 📊
+```bash
+# Generar informe completo del dataset
+python generate_report.py
+
+# El informe se guarda en: INFORME_DATASET.md y INFORME_DATASET.json
+
+# Personalizar directorios
+python generate_report.py \
+  --weapons-dir dataset/augmented \
+  --persons-dir output/cropped_persons \
+  --enhanced-dir output/enhanced_persons \
+  --output MI_INFORME.md
+```
+**¿Qué hace?**: Genera un informe completo que incluye:
+- Balanceo de clases (pistolas vs cuchillos)
+- Normalización de tamaños de imágenes
+- Verificación de transformaciones aplicadas
+- Estado del pipeline de mejora de personas
+- Recomendaciones para el siguiente paso
 
 ### 🐳 Alternativa Docker
 ```bash
