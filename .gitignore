@@ -2,7 +2,7 @@
 dataset
 input
 output
-teoria
+#teoria
 custom_env
 .venv
 image-transform-app/

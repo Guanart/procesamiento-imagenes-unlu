@@ -86,27 +86,7 @@ python generate_report.py \
 
 ---
 
-### 3. `run_pipeline.sh` - Script de Ejecución Completa
-**Objetivo**: Ejecutar el pipeline completo de forma interactiva
-
-**Pasos**:
-1. Detección de personas (`video_processor.py`)
-2. Mejora de calidad (`image_enhancer.py`)
-3. Aumentación de armas (`simple_augmenter.py`)
-4. Generación de informe (`generate_report.py`)
-
-**Uso**:
-```bash
-# Hacer ejecutable (solo una vez)
-chmod +x run_pipeline.sh
-
-# Ejecutar pipeline interactivo
-./run_pipeline.sh
-```
-
----
-
-### 4. `DOCUMENTACION_TECNICA.md` - Documentación Detallada
+### 3. `DOCUMENTACION_TECNICA.md` - Documentación Detallada
 **Contenido**:
 - Explicación de cada técnica de procesamiento
 - Conceptos teóricos (spline, bilateral, CLAHE, Canny)
@@ -210,9 +190,6 @@ python simple_augmenter.py
 
 # 4. Generar informe
 python generate_report.py
-
-# O ejecutar todo de una vez:
-./run_pipeline.sh
 ```
 
 ---
