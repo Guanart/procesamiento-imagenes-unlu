@@ -12,6 +12,7 @@ Técnicas aplicadas:
 - Realce de nitidez (unsharp masking)
 - Ajuste de contraste adaptativo (CLAHE)
 - Realce de bordes
+- Mejora de brillo (ajuste canal V en HSV)
 
 Autor: Proyecto de Procesamiento de Imágenes - Universidad Nacional de Luján
 Fecha: Octubre 2025
@@ -33,6 +34,21 @@ MIN_HEIGHT = 200
 MIN_WIDTH = 100
 
 class ImageEnhancer:
+    def enhance_brightness(self, image: np.ndarray) -> np.ndarray:
+        """
+        Mejora el brillo de la imagen aumentando el canal V en HSV.
+        Args:
+            image: Imagen de entrada (BGR)
+        Returns:
+            Imagen con brillo mejorado
+        """
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        h, s, v = cv2.split(hsv)
+        v = cv2.add(v, 30)
+        v = np.clip(v, 0, 255)
+        hsv_brighter = cv2.merge([h, s, v])
+        brighter = cv2.cvtColor(hsv_brighter, cv2.COLOR_HSV2BGR)
+        return brighter
     """
     Clase para mejorar la calidad de imágenes de personas extraídas.
     
@@ -201,27 +217,30 @@ class ImageEnhancer:
             enhanced = self.resize_with_spline(image)
             
             # 2. Reducir ruido
-            enhanced = self.reduce_noise(enhanced)
+            # enhanced = self.reduce_noise(enhanced)
             
             # 3. Aumentar nitidez
-            enhanced = self.sharpen_image(enhanced)
+            # enhanced = self.sharpen_image(enhanced)
             
             # 4. Mejorar contraste
             enhanced = self.enhance_contrast(enhanced)
             
             # 5. Realzar bordes
-            enhanced = self.enhance_edges(enhanced)
-            
+            # enhanced = self.enhance_edges(enhanced)
+
+            # 6. Mejorar brillo
+            enhanced = self.enhance_brightness(enhanced)
+
             enhanced_shape = enhanced.shape[:2]
             self.stats['enhanced_sizes'].append(enhanced_shape)
             self.stats['total_processed'] += 1
-            
+
             return True, {
                 'original_size': original_shape,
                 'enhanced_size': enhanced_shape,
                 'enhanced_image': enhanced
             }
-            
+
         except Exception as e:
             self.stats['failed'] += 1
             return False, {'error': str(e)}
