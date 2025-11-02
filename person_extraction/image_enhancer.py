@@ -34,21 +34,6 @@ MIN_HEIGHT = 200
 MIN_WIDTH = 100
 
 class ImageEnhancer:
-    def enhance_brightness(self, image: np.ndarray) -> np.ndarray:
-        """
-        Mejora el brillo de la imagen aumentando el canal V en HSV.
-        Args:
-            image: Imagen de entrada (BGR)
-        Returns:
-            Imagen con brillo mejorado
-        """
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        h, s, v = cv2.split(hsv)
-        v = cv2.add(v, 30)
-        v = np.clip(v, 0, 255)
-        hsv_brighter = cv2.merge([h, s, v])
-        brighter = cv2.cvtColor(hsv_brighter, cv2.COLOR_HSV2BGR)
-        return brighter
     """
     Clase para mejorar la calidad de imágenes de personas extraídas.
     
@@ -102,43 +87,6 @@ class ImageEnhancer:
         
         return image
     
-    def reduce_noise(self, image: np.ndarray) -> np.ndarray:
-        """
-        Reduce el ruido de la imagen usando filtro bilateral.
-        
-        El filtro bilateral preserva los bordes mientras reduce el ruido.
-        
-        Args:
-            image: Imagen de entrada (BGR)
-            
-        Returns:
-            Imagen con ruido reducido
-        """
-        # Filtro bilateral: suaviza preservando bordes
-        # d=9: diámetro del píxel vecindario
-        # sigmaColor=75: sigma en el espacio de color
-        # sigmaSpace=75: sigma en el espacio de coordenadas
-        denoised = cv2.bilateralFilter(image, d=9, sigmaColor=75, sigmaSpace=75)
-        return denoised
-    
-    def sharpen_image(self, image: np.ndarray) -> np.ndarray:
-        """
-        Aumenta la nitidez de la imagen usando unsharp masking.
-        
-        Args:
-            image: Imagen de entrada (BGR)
-            
-        Returns:
-            Imagen con nitidez aumentada
-        """
-        # Crear versión borrosa
-        gaussian = cv2.GaussianBlur(image, (0, 0), 2.0)
-        
-        # Unsharp mask: imagen_nitida = imagen + cantidad * (imagen - blur)
-        sharpened = cv2.addWeighted(image, 1.5, gaussian, -0.5, 0)
-        
-        return sharpened
-    
     def enhance_contrast(self, image: np.ndarray) -> np.ndarray:
         """
         Mejora el contraste usando CLAHE (Adaptive Histogram Equalization).
@@ -162,36 +110,23 @@ class ImageEnhancer:
         enhanced = cv2.cvtColor(lab_clahe, cv2.COLOR_LAB2BGR)
         
         return enhanced
-    
-    def enhance_edges(self, image: np.ndarray) -> np.ndarray:
+
+    def enhance_brightness(self, image: np.ndarray) -> np.ndarray:
         """
-        Realza los bordes de la imagen para mejorar detalles.
-        
+        Mejora el brillo de la imagen aumentando el canal V en HSV.
         Args:
             image: Imagen de entrada (BGR)
-            
         Returns:
-            Imagen con bordes realzados
+            Imagen con brillo mejorado
         """
-        # Convertir a escala de grises para detectar bordes
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        
-        # Detectar bordes con Canny
-        edges = cv2.Canny(gray, 50, 150)
-        
-        # Dilatar bordes para hacerlos más visibles
-        kernel = np.ones((2, 2), np.uint8)
-        edges_dilated = cv2.dilate(edges, kernel, iterations=1)
-        
-        # Convertir bordes a BGR
-        edges_bgr = cv2.cvtColor(edges_dilated, cv2.COLOR_GRAY2BGR)
-        
-        # Combinar con imagen original
-        # Usar peso bajo para no saturar la imagen
-        enhanced = cv2.addWeighted(image, 0.9, edges_bgr, 0.1, 0)
-        
-        return enhanced
-    
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        h, s, v = cv2.split(hsv)
+        v = cv2.add(v, 30)
+        v = np.clip(v, 0, 255)
+        hsv_brighter = cv2.merge([h, s, v])
+        brighter = cv2.cvtColor(hsv_brighter, cv2.COLOR_HSV2BGR)
+        return brighter
+
     def process_image(self, image_path: Path) -> Tuple[bool, Dict]:
         """
         Aplica el pipeline completo de mejora a una imagen.
@@ -215,20 +150,11 @@ class ImageEnhancer:
             # Pipeline de mejora
             # 1. Redimensionar con spline
             enhanced = self.resize_with_spline(image)
-            
-            # 2. Reducir ruido
-            # enhanced = self.reduce_noise(enhanced)
-            
-            # 3. Aumentar nitidez
-            # enhanced = self.sharpen_image(enhanced)
-            
-            # 4. Mejorar contraste
+
+            # 2. Mejorar contraste
             enhanced = self.enhance_contrast(enhanced)
             
-            # 5. Realzar bordes
-            # enhanced = self.enhance_edges(enhanced)
-
-            # 6. Mejorar brillo
+            # 3. Mejorar brillo
             enhanced = self.enhance_brightness(enhanced)
 
             enhanced_shape = enhanced.shape[:2]

@@ -51,24 +51,24 @@ Las siguientes transformaciones básicas han sido aplicadas:
 
 ## 👥 Dataset de Personas (Stage 2)
 
-⚠️ No se encontraron datos del dataset de personas.
+**Total de personas extraídas**: 270
+
+**Tamaño promedio original**: 147x66 píxeles
+
+**Tamaño mínimo**: 55x36 píxeles
+
+**Tamaño máximo**: 253x117 píxeles
 
 
-💡 **Recomendación**: Ejecutar `video_processor.py` para extraer personas de videos.
+### 🎨 Pipeline de Mejora de Calidad
 
----
+**Estado**: ✅ Pipeline aplicado correctamente
 
-## 📋 Conclusiones y Recomendaciones
 
-- ⚠️ El dataset de armas está **desbalanceado**, considerar más augmentation
+Técnicas de mejora aplicadas:
+1. ✅ **Interpolación Spline Cúbica** - Redimensionamiento a mínimo 200x100 px
+2. ✅ **Mejora de Contraste** - CLAHE adaptativo
+3. ✅ **Mejora de Brillo** - Mejora el brillo de la imagen aumentando el canal V en HSV
 
-### 🎯 Próximos Pasos
-
-1. Verificar el balanceo de clases en el dataset de armas
-2. Asegurar que todas las imágenes de personas estén mejoradas
-3. Proceder con el entrenamiento del modelo Stage 2
-4. Aplicar fine-tuning de YOLOv8 para detección de armas en personas
-
----
-
-*Informe generado automáticamente por `generate_report.py`*
+**Objetivo**: Mejorar la calidad de las imágenes de personas para facilitar
+la detección de armas en el Stage 2 del pipeline.
