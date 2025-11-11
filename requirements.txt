@@ -18,3 +18,10 @@ tqdm>=4.65.0
 # Dependencias adicionales para compatibilidad
 setuptools>=68.0.0
 wheel>=0.40.0
+
+# Dependencias para métricas y visualización de entrenamiento
+scikit-learn>=1.2.0
+pandas>=2.0.0
+
+# Dependencias para GPU AMD / ROCm (ver documentación de AMD)
+# (Nota: puede que instales versiones específicas de torch/torchvision para ROCm según tu hardware)
