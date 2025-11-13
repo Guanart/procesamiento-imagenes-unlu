@@ -12,6 +12,19 @@ from torchvision import datasets, models
 from torch.utils.data import DataLoader
 from sklearn.metrics import confusion_matrix, classification_report
 import matplotlib.pyplot as plt
+from torchvision import transforms
+import random
+from PIL import Image
+
+DEFAULT_EPOCHS = 10
+DEFAULT_BATCH_SIZE = 16
+DEFAULT_LR = 0.001
+DEFAULT_OUTPUT_DIR = "results"
+
+# Configuración de preprocesamiento
+APPLY_NORMALIZATION = True  # Si False, no se aplica Normalize
+APPLY_RESIZE = True  # Si True, se aplica resize a 224x224
+TRAIN_SPLIT = 0.8  # Proporción de train/val
 
 
 def get_args():
@@ -19,15 +32,15 @@ def get_args():
         description="Entrenamiento clasificación armas (dataset ya saneado)"
     )
     parser.add_argument(
-        "--data_dir",
+        "--data-dir",
         type=str,
         required=True,
         help="Directorio raíz con subcarpetas train/val/pistol/knife",
     )
-    parser.add_argument("--epochs", type=int, default=10)
-    parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--lr", type=float, default=0.001)
-    parser.add_argument("--output_dir", type=str, default="results")
+    parser.add_argument("--epochs", type=int, default=DEFAULT_EPOCHS)
+    parser.add_argument("--batch_size", type=int, default=DEFAULT_BATCH_SIZE)
+    parser.add_argument("--lr", type=float, default=DEFAULT_LR)
+    parser.add_argument("--output_dir", type=str, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--device", type=str, default="cuda")
     return parser.parse_args()
 
@@ -55,8 +68,11 @@ def train_model(
             running_loss = 0.0
             running_corrects = 0
             total = 0
+            num_batches = len(dataloaders[phase])
+            batch_count = 0
 
             for inputs, labels in dataloaders[phase]:
+                batch_count += 1
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
@@ -74,6 +90,13 @@ def train_model(
                 running_corrects += torch.sum(preds == labels.data)
                 total += inputs.size(0)
 
+                # Medidor de progreso por batch
+                print(
+                    f"  [{phase}] Batch {batch_count}/{num_batches} - Imágenes procesadas: {total}",
+                    end="\r",
+                )
+
+            print()  # Salto de línea tras el último batch
             epoch_loss = running_loss / total
             epoch_acc = running_corrects.double().item() / total
 
@@ -152,19 +175,55 @@ def main():
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
 
-    # Asumimos que las imágenes ya tienen tamaño correcto — sólo convertimos a tensor + normalizamos mínimamente:
-    from torchvision import transforms
+    # Definir transformaciones
+    transform_list = [transforms.ToTensor()]
+    if APPLY_RESIZE:
+        transform_list.insert(0, transforms.Resize((224, 224)))
+    if APPLY_NORMALIZATION:
+        transform_list.append(
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        )
+    basic_transform = transforms.Compose(transform_list)
 
-    basic_transform = transforms.Compose(
-        [
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-        ]
-    )
+    # Leer todas las imágenes y etiquetas
+    all_images = []
+    all_labels = []
+    class_names = []
+    for class_name in sorted(os.listdir(args.data_dir)):
+        class_path = os.path.join(args.data_dir, class_name)
+        if not os.path.isdir(class_path):
+            continue
+        class_names.append(class_name)
+        for fname in os.listdir(class_path):
+            if fname.lower().endswith((".jpg", ".jpeg", ".png", ".bmp")):
+                all_images.append(os.path.join(class_path, fname))
+                all_labels.append(class_names.index(class_name))
+
+    # Mezclar y hacer split
+    combined = list(zip(all_images, all_labels))
+    random.shuffle(combined)
+    split_idx = int(len(combined) * TRAIN_SPLIT)
+    train_data = combined[:split_idx]
+    val_data = combined[split_idx:]
+
+    # Dataset personalizado
+    class SimpleImageDataset(torch.utils.data.Dataset):
+        def __init__(self, items, transform):
+            self.items = items
+            self.transform = transform
+
+        def __len__(self):
+            return len(self.items)
+
+        def __getitem__(self, idx):
+            img_path, label = self.items[idx]
+            image = Image.open(img_path).convert("RGB")
+            image = self.transform(image)
+            return image, label
 
     image_datasets = {
-        x: datasets.ImageFolder(os.path.join(args.data_dir, x), basic_transform)
-        for x in ["train", "val"]
+        "train": SimpleImageDataset(train_data, basic_transform),
+        "val": SimpleImageDataset(val_data, basic_transform),
     }
     dataloaders = {
         x: DataLoader(
@@ -175,7 +234,6 @@ def main():
         )
         for x in ["train", "val"]
     }
-    class_names = image_datasets["train"].classes
 
     model = models.resnet18(pretrained=True)
     num_ftrs = model.fc.in_features
