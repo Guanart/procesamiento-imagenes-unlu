@@ -21,6 +21,7 @@ Aumenta el dataset de armas (pistolas y cuchillos) aplicando transformaciones si
 ```bash
 cd weapons_augmenter
 python simple_augmenter.py
+python normalize.py --input dataset/augmented --output dataset/normalized --size 224 224
 ```
 
 **Resultado:** 1,420 imágenes → 5,680 imágenes (4x)
@@ -47,6 +48,15 @@ python app.py
 ```
 
 Acceder a: `http://localhost:5000`
+
+### 4. weapons_classifier
+Clasificador de armas (pistolas vs cuchillos) usando PyTorch.
+**Uso:**
+```bash
+cd weapons_classifier
+python train_weapons_classifier.py --data_dir dataset/normalized --output_dir results --epochs 10 --batch_size 32
+python test_weapons_classifier.py --image /ruta/a/imagen.jpg --model results/best_model.pth
+```
 
 ## Instalación
 
