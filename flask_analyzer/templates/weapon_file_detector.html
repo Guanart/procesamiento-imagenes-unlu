@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detección en Archivos - Weapon Detector</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2em;
+        }
+
+        .back-btn {
+            background: white;
+            color: #667eea;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        .back-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .main-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .drop-zone {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 60px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9ff;
+        }
+
+        .drop-zone.dragover {
+            background: #e8eaff;
+            border-color: #764ba2;
+        }
+
+        .drop-zone-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+
+        .drop-zone-text h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .drop-zone-text p {
+            color: #666;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .settings {
+            margin: 20px 0;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .setting-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .setting-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .setting-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+
+        .process-btn {
+            width: 100%;
+            padding: 15px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 20px;
+        }
+
+        .process-btn:hover {
+            background: #5568d3;
+        }
+
+        .process-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .progress {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #f0f0f0;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .result-info {
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .result-info h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .detection-count {
+            font-size: 2em;
+            color: #764ba2;
+            font-weight: bold;
+        }
+
+        .result-media {
+            width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .alert.error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+        }
+
+        .alert.success {
+            background: #efe;
+            border: 1px solid #cfc;
+            color: #3c3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📁 Detección en Archivos</h1>
+            <a href="/" class="back-btn">← Volver</a>
+        </div>
+
+        <div class="main-card">
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-icon">📤</div>
+                <div class="drop-zone-text">
+                    <h3>Arrastra tu archivo aquí</h3>
+                    <p>o haz clic para seleccionar</p>
+                    <p style="margin-top: 10px; font-size: 0.9em; color: #999;">
+                        Soporta: JPG, PNG, MP4, AVI, MOV, MKV
+                    </p>
+                </div>
+                <input type="file" id="fileInput" class="file-input" accept="image/*,video/*">
+            </div>
+
+            <div class="settings">
+                <div class="setting-group">
+                    <label for="confidence">Umbral de Confianza (0.0 - 1.0)</label>
+                    <input type="number" id="confidence" min="0" max="1" step="0.05" value="0.5">
+                </div>
+                <div class="setting-group">
+                    <label for="frameSkip">Saltar Frames (solo video, 1-10)</label>
+                    <input type="number" id="frameSkip" min="1" max="10" value="2">
+                </div>
+            </div>
+
+            <button class="process-btn" id="processBtn" disabled>Procesar Archivo</button>
+
+            <div class="alert error" id="errorAlert"></div>
+            <div class="alert success" id="successAlert"></div>
+
+            <div class="progress" id="progress">
+                <div class="progress-bar">
+                    <div class="progress-bar-fill" id="progressFill">Procesando...</div>
+                </div>
+            </div>
+
+            <div class="results" id="results">
+                <div class="result-info">
+                    <h3>Resultados de Detección</h3>
+                    <p>Armas detectadas: <span class="detection-count" id="detectionCount">0</span></p>
+                    <p id="extraInfo" style="margin-top: 10px; color: #666;"></p>
+                </div>
+                <img id="resultImage" class="result-media" style="display:none;">
+                <video id="resultVideo" class="result-media" controls style="display:none;"></video>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const processBtn = document.getElementById('processBtn');
+        const progress = document.getElementById('progress');
+        const progressFill = document.getElementById('progressFill');
+        const results = document.getElementById('results');
+        const resultImage = document.getElementById('resultImage');
+        const resultVideo = document.getElementById('resultVideo');
+        const detectionCount = document.getElementById('detectionCount');
+        const extraInfo = document.getElementById('extraInfo');
+        const errorAlert = document.getElementById('errorAlert');
+        const successAlert = document.getElementById('successAlert');
+
+        let selectedFile = null;
+
+        // Drag & Drop
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            selectedFile = file;
+            dropZone.querySelector('.drop-zone-text h3').textContent = `✓ ${file.name}`;
+            dropZone.querySelector('.drop-zone-text p').textContent = 'Archivo listo para procesar';
+            processBtn.disabled = false;
+            hideAlerts();
+            results.style.display = 'none';
+        }
+
+        processBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            hideAlerts();
+            processBtn.disabled = true;
+            progress.style.display = 'block';
+            progressFill.style.width = '50%';
+            results.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('confidence', document.getElementById('confidence').value);
+            formData.append('frame_skip', document.getElementById('frameSkip').value);
+
+            try {
+                const response = await fetch('/api/detect-file', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    showSuccess(data);
+                }
+            } catch (error) {
+                showError('Error de conexión: ' + error.message);
+            } finally {
+                progress.style.display = 'none';
+                processBtn.disabled = false;
+            }
+        });
+
+        function showSuccess(data) {
+            results.style.display = 'block';
+            detectionCount.textContent = data.detections;
+
+            if (data.type === 'image') {
+                resultImage.src = data.result_url;
+                resultImage.style.display = 'block';
+                resultVideo.style.display = 'none';
+                extraInfo.textContent = 'Imagen procesada exitosamente';
+            } else {
+                resultVideo.src = data.result_url;
+                resultVideo.style.display = 'block';
+                resultImage.style.display = 'none';
+                extraInfo.textContent = `Video procesado: ${data.frames_processed} frames`;
+            }
+
+            successAlert.textContent = '✓ Procesamiento completado exitosamente';
+            successAlert.style.display = 'block';
+        }
+
+        function showError(message) {
+            errorAlert.textContent = '✗ Error: ' + message;
+            errorAlert.style.display = 'block';
+        }
+
+        function hideAlerts() {
+            errorAlert.style.display = 'none';
+            successAlert.style.display = 'none';
+        }
+    </script>
+</body>
+</html>

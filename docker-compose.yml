@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  weapon-detector:
+    build:
+      context: .
+      dockerfile: flask_analyzer/Dockerfile.weapons
+    container_name: weapon-detector
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./flask_analyzer/uploads/weapons:/app/uploads/weapons
+      - ./flask_analyzer/results/weapons:/app/results/weapons
+      - ./weapons_detector2/results_light:/app/models
+      - ./results_output:/app/results
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+      - WEAPON_MODEL_PATH=/app/models/best_model.pth
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - weapon-net
+
+networks:
+  weapon-net:
+    driver: bridge

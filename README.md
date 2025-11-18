@@ -1,273 +1,240 @@
-# 🔫 Detección de Armas en Tiempo Real - UNLu
+# Sistema de Detección de Armas en Tiempo Real
 
-Proyecto de detección de armas (pistola/cuchillo) en personas usando Faster R-CNN optimizado para AMD ROCm (Radeon 780M iGPU).
+
+
+Sistema completo de detección de armas en imágenes y videos utilizando Deep Learning. El sistema identifica personas en el contenido multimedia, mejora las imágenes y detecta armas (cuchillos y pistolas) con modelos de detección de objetos.Proyecto de detección de armas (pistola/cuchillo) en personas usando Faster R-CNN optimizado para AMD ROCm (Radeon 780M iGPU).
+
+
+
+## 📋 Índice---
+
+
+
+- [Descripción General](#descripción-general)## 🚀 Inicio Rápido
+
+- [Arquitectura del Sistema](#arquitectura-del-sistema)
+
+- [Módulos del Proyecto](#módulos-del-proyecto)### 1. Verificar GPU AMD
+
+- [Instalación](#instalación)```bash
+
+- [Uso](#uso)python check_gpu.py
+
+- [Entrenamiento del Modelo](#entrenamiento-del-modelo)```
+
+- [Aplicación Web](#aplicación-web)
+
+- [Docker](#docker)### 2. Entrenar detector
+
+# 🔫 Sistema de Detección de Armas en Imágenes y Video
+
+Proyecto académico UNLu para detección de armas (pistola/cuchillo) en personas usando Deep Learning (Faster R-CNN + YOLOv8 + Flask). Optimizado para GPU AMD/ROCm y CUDA.
 
 ---
 
-## 🚀 Inicio Rápido
+## 📋 Índice
 
-### 1. Verificar GPU AMD
-```bash
-python check_gpu.py
+- [Descripción General](#descripción-general)
+- [Arquitectura](#arquitectura)
+- [Módulos](#módulos)
+- [Instalación](#instalación)
+- [Uso Rápido](#uso-rápido)
+- [Entrenamiento](#entrenamiento)
+- [API y Web](#api-y-web)
+- [Docker](#docker)
+- [Requisitos y Dependencias](#requisitos-y-dependencias)
+- [Estructura](#estructura)
+- [Problemas Comunes](#problemas-comunes)
+- [Licencia y Créditos](#licencia-y-créditos)
+
+---
+
+## 🎯 Descripción General
+
+El sistema procesa videos e imágenes en tres etapas:
+1. **Extracción de Personas**: YOLOv8 detecta personas y recorta cada una.
+2. **Mejora de Imagen**: CLAHE y ajuste de brillo sobre cada recorte.
+3. **Detección de Armas**: Faster R-CNN identifica armas (knife, pistol) en los recortes.
+
+Características:
+- Detección de personas (YOLOv8n, COCO)
+- Mejora automática de imágenes
+- Detección de armas (Faster R-CNN, MobileNetV3)
+- Aplicación web Flask (drag & drop, webcam)
+- Pipeline CLI y API REST
+- Despliegue con Docker
+- Optimizado para GPU (AMP) y CPU
+
+---
+
+## 🏗️ Arquitectura
+
 ```
-
-### 2. Entrenar detector
-```bash
-python weapons_detector/train_fasterrcnn.py \
-  --images-dir dataset/images \
-  --xml-dir dataset/xmls \
-  --output-dir results_frcnn \
-  --epochs 20 \
-  --batch-size 4 \
-  --amp
-```
-
-### 3. Detección en tiempo real
-```bash
-python weapons_detector/real_time_weapon_detector.py \
-  --model-path results_frcnn/best_model.pth \
-  --classes-path results_frcnn/classes.json
+Video/Imagen → [YOLOv8 Person Detection] → [Image Enhancement] → [Faster R-CNN Weapon Detection] → Resultado Anotado
 ```
 
 ---
 
-## 📋 Requisitos
-- Python 3.8+
-- PyTorch con ROCm (AMD GPU) o CUDA
-- WSL2 en Windows 11 (para AMD)
-- 20GB RAM
-- Dataset con imágenes + XML (formato Pascal VOC)
+## 📦 Módulos
+
+### 1. person_extraction/
+Extracción de personas desde videos/imágenes usando YOLOv8.
+- `video_processor.py`: Procesa videos, detecta personas, genera recortes
+- `image_enhancer.py`: Mejora imágenes con CLAHE y brillo
+- `yolov8n.pt`: Modelo YOLOv8 nano
+
+### 2. weapons_detector2/
+Entrenamiento y evaluación del detector de armas.
+- `train_fasterrcnn_light.py`: Entrenamiento Faster R-CNN
+- `test_light_model.py`: Inferencia en imágenes
+- `dataset/`: Imágenes + XML (Pascal VOC)
+- `results_light/best_model.pth`: Modelo entrenado
+
+### 3. weapon_detection_pipeline/
+Pipeline integrado: personas → mejora → armas.
+- `pipeline.py`: Orquestador CLI y programático
+
+### 4. flask_analyzer/
+Aplicación web Flask (drag & drop, webcam, API REST).
+- `weapon_detector_app.py`: Servidor Flask
+- `templates/`: HTML
+
+---
 
 ## 🔧 Instalación
 
-### PyTorch ROCm (AMD Radeon 780M)
+### Opción A: Docker (recomendado)
 ```bash
-pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm5.7
+./start_docker_weapons.sh   # Linux/Mac
+start_docker_weapons.bat    # Windows
 ```
+Acceder a http://localhost:5001
 
-### Dependencias
+### Opción B: Local
 ```bash
-pip install opencv-python scikit-learn matplotlib tqdm ultralytics
+git clone <repo>
+cd procesamiento-imagenes-unlu
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements_weapon_detector.txt
 ```
 
 ---
 
-## 📂 Estructura del Dataset
+## 🎮 Uso Rápido
 
-```
-dataset/
-├── images/              # Todas las imágenes mezcladas
-│   ├── armas (1).jpg
-│   ├── knife_001.jpg
-│   ├── pistol_045.jpg
-│   └── ...
-└── xmls/                # Archivos XML (uno por imagen)
-    ├── armas (1).xml
-    ├── knife_001.xml
-    ├── pistol_045.xml
-    └── ...
-```
-
-### Formato XML (Pascal VOC)
-```xml
-<annotation>
-  <filename>armas (1).jpg</filename>
-  <size>
-    <width>240</width>
-    <height>145</height>
-  </size>
-  <object>
-    <name>pistol</name>  <!-- o 'knife' -->
-    <bndbox>
-      <xmin>3</xmin>
-      <ymin>1</ymin>
-      <xmax>128</xmax>
-      <ymax>100</ymax>
-    </bndbox>
-  </object>
-</annotation>
-```
-
-**Notas:**
-- Campo `<path>` se ignora (puede estar incorrecto)
-- Clases: `pistol` y `knife`
-- Múltiples objetos por imagen permitidos
-
----
-
-## 🎯 Entrenamiento
-
-### Comando recomendado (AMD 780M)
 ```bash
-python weapons_detector/train_fasterrcnn.py \
-  --images-dir dataset/images \
-  --xml-dir dataset/xmls \
-  --output-dir results_frcnn \
-  --epochs 20 \
-  --batch-size 4 \
-  --lr 0.001 \
-  --amp
-```
-
-### Parámetros
-| Parámetro | Descripción | Valor recomendado |
-|-----------|-------------|-------------------|
-| `--epochs` | Número de épocas | 15-25 |
-| `--batch-size` | Tamaño del batch | 4 (2 si OOM) |
-| `--lr` | Learning rate | 0.001 |
-| `--amp` | Mixed precision | ✅ Sí |
-
-### Salida
-```
-results_frcnn/
-├── best_model.pth       # Modelo entrenado
-├── classes.json         # Mapeo clases
-└── training_log.json    # Historial
+# Imagen
+python weapon_detection_pipeline/pipeline.py --mode image --input test.jpg --output out.jpg
+# Video
+python weapon_detection_pipeline/pipeline.py --mode video --input in.mp4 --output out.mp4 --frame-skip 5
+# Web
+python flask_analyzer/weapon_detector_app.py
 ```
 
 ---
 
-## 🎬 Detección en Tiempo Real
+## 🧠 Entrenamiento
 
-### Webcam
 ```bash
-python weapons_detector/real_time_weapon_detector.py \
-  --model-path results_frcnn/best_model.pth \
-  --classes-path results_frcnn/classes.json
+cd weapons_detector2
+python train_fasterrcnn_light.py --epochs 25 --batch-size 16 --amp
 ```
+Hipótesis óptimas: 320x320 resize, batch 16, AMP activo, 25–50 épocas.
 
-### Video
+---
+
+## 🌐 API y Web
+
+**API REST:**
 ```bash
-python weapons_detector/real_time_weapon_detector.py \
-  --model-path results_frcnn/best_model.pth \
-  --classes-path results_frcnn/classes.json \
-  --video input.mp4
+curl -X POST http://localhost:5001/api/detect-file -F "file=@imagen.jpg" -F "confidence=0.5"
 ```
+Endpoints webcam: `/api/webcam/start`, `/api/webcam/stop`, `/api/webcam/stream`.
 
-**Controles:** Presiona `q` para salir
+**Web:**
+Abrir http://localhost:5001 y usar los módulos de archivos o webcam.
 
 ---
 
-## ⚙️ Optimizaciones AMD Radeon 780M
+## 🐳 Docker
 
-### Configuración WSL2 (.wslconfig)
-```ini
-[wsl2]
-memory=20GB
-processors=8
-swap=8GB
-```
-
-### Variables de entorno (automáticas)
 ```bash
-PYTORCH_HIP_ALLOC_CONF="expandable_segments:True"
+docker-compose build --no-cache
+docker-compose up -d
+docker-compose logs -f
+docker-compose down
+```
+Volúmenes: modelo y resultados se actualizan sin reconstruir.
+
+---
+
+## 📋 Requisitos y Dependencias
+
+**Archivo principal:** `requirements_weapon_detector.txt`
+
+Por defecto, sólo incluye dependencias mínimas para INFERENCIA y Web (producción):
+
+```text
+torch>=2.0.0
+torchvision>=0.15.0
+ultralytics>=8.0.0
+opencv-python>=4.8.0
+Pillow>=10.0.0
+numpy>=1.24.0
+Flask>=2.3.0
 ```
 
-### Consejos
-- ✅ Siempre usar `--amp` (2-3x más rápido)
-- ✅ Dataset en disco NVMe (no /mnt/c)
-- ⚠️ Reducir batch-size si "OOM error"
+Extras para ENTRENAMIENTO (descomentar si se entrena el modelo):
 
----
+```text
+# torchmetrics>=1.0.0       # mAP y métricas avanzadas
+# tqdm>=4.65.0              # Barras de progreso
+# psutil>=5.9.0             # Monitoreo de recursos
+# scikit-learn>=1.2.0       # Métricas adicionales / split
+# matplotlib>=3.7.0         # Gráficos de entrenamiento
+# scipy>=1.10.0             # Dependencias científicas
+```
 
-## 📊 Métricas Esperadas (780M)
+Esto acelera la instalación y reduce el tamaño de la imagen Docker. Si vas a entrenar, instala los extras:
 
-| Métrica | Valor |
-|---------|-------|
-| Velocidad entrenamiento | 15-20 imgs/seg |
-| Inferencia webcam | 10-15 FPS |
-| Memoria GPU | 2-4 GB |
-
----
-
-## 🐛 Solución de Problemas
-
-### GPU no detectada
 ```bash
-python check_gpu.py
-# Si False, reinstalar PyTorch ROCm
-pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm5.7
-```
-
-### CUDA out of memory
-- `--batch-size 2`
-- Cerrar otras apps GPU
-
-### Imágenes no encontradas
-- Verificar `<filename>` en XML coincide con archivo
-- Campo `<path>` se ignora automáticamente
-
----
-
-## 📁 Archivos del Proyecto
-
-### ✅ Principales (usar)
-- [`weapons_detector/train_fasterrcnn.py`](weapons_detector/train_fasterrcnn.py) - Entrenamiento
-- [`weapons_detector/real_time_weapon_detector.py`](weapons_detector/real_time_weapon_detector.py) - Detección
-- [`check_gpu.py`](check_gpu.py) - Verificación GPU
-
-### ℹ️ Auxiliares
-- `weapons_classifier/` - Clasificador simple (NO usar para detección)
-- `dataset_tools/` - Scripts conversión formatos
-- `person_extraction/` - Stage 1 (YOLO personas)
-
----
-
-**Uso:**
-```bash
-cd person_extraction
-python video_processor.py
-python image_enhancer.py
-```
-
-**Resultado:** 270 personas extraídas y mejoradas
-
-### 3. flask_analyzer
-Servidor web para análisis de imágenes (histogramas RGB, estadísticas).
-
-**Uso:**
-```bash
-cd flask_analyzer
-python app.py
-```
-
-Acceder a: `http://localhost:5000`
-
-### 4. weapons_classifier
-Clasificador de armas (pistolas vs cuchillos) usando PyTorch.
-**Uso:**
-```bash
-
-
-## 🎓 Flujo de Trabajo Completo
-
-```
-1. Verificar GPU       → python check_gpu.py
-2. Preparar dataset    → Organizar images/ y xmls/
-3. Entrenar modelo     → python weapons_detector/train_fasterrcnn.py ...
-4. Detectar tiempo real → python weapons_detector/real_time_weapon_detector.py ...
+pip install torchmetrics tqdm psutil scikit-learn matplotlib scipy
 ```
 
 ---
 
-## 📝 Notas Importantes
+## 📂 Estructura
 
-- ✅ **Usar Faster R-CNN** (train_fasterrcnn.py) para detección
-- ❌ **NO usar train_weapons_classifier.py** (solo clasificación básica)
-- ✅ Dataset debe tener personas sosteniendo armas (contexto real)
-- ❌ No usar imágenes fondos lisos (no detecta en personas)
-- ✅ Mixed Precision (--amp) esencial para AMD
-
----
-
-## 📚 Referencias
-
-- [Faster R-CNN](https://pytorch.org/vision/stable/models/generated/torchvision.models.detection.fasterrcnn_resnet50_fpn.html)
-- [PyTorch ROCm](https://pytorch.org/get-started/locally/)
-- [Pascal VOC](http://host.robots.ox.ac.uk/pascal/VOC/)
+```
+procesamiento-imagenes-unlu/
+├── README.md
+├── docker-compose.yml
+├── start_docker_weapons.sh / .bat
+├── requirements_weapon_detector.txt
+├── person_extraction/
+├── weapons_detector2/
+├── weapon_detection_pipeline/
+└── flask_analyzer/
+```
 
 ---
 
-**Proyecto académico** - Universidad Nacional de Luján  
-Procesamiento de Imágenes - 2025
+## 🐛 Problemas Comunes
 
+- CUDA out of memory → bajar batch o usar CPU
+- Modelo no encontrado → entrenar y ubicar en `weapons_detector2/results_light/`
+- Webcam en Docker → usar modo local
+
+---
+
+## 📝 Licencia y Créditos
+
+Trabajo académico - Procesamiento de Imágenes - UNLu.
+
+Agradecimientos: YOLOv8 (Ultralytics), PyTorch, COCO, Google Colab.
+
+**Última actualización:** Noviembre 2025
+
+
+```### Salida

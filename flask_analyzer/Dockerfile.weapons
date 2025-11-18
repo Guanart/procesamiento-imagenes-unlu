@@ -1,0 +1,43 @@
+# Dockerfile para Sistema de Detección de Armas
+FROM python:3.10-slim
+
+# Variables de entorno
+ENV PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgomp1 \
+    wget \
+    curl \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Crear directorio de trabajo
+WORKDIR /app
+
+# Copiar requirements
+COPY requirements_weapon_detector.txt .
+
+# Instalar dependencias Python
+RUN pip install --no-cache-dir -r requirements_weapon_detector.txt
+
+# Copiar código fuente
+COPY weapon_detection_pipeline/ ./weapon_detection_pipeline/
+COPY person_extraction/yolov8n.pt ./person_extraction/yolov8n.pt
+COPY flask_analyzer/weapon_detector_app.py .
+COPY flask_analyzer/templates/ ./templates/
+
+# Crear directorios necesarios
+RUN mkdir -p uploads/weapons results/weapons models
+
+# Exponer puerto
+EXPOSE 5001
+
+# Comando de inicio
+CMD ["python", "weapon_detector_app.py"]
