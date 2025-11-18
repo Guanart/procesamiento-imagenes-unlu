@@ -6,6 +6,8 @@ output
 custom_env
 .venv
 image-transform-app/
+**/*result*
+**/*prediction*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
