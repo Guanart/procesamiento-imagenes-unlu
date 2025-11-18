@@ -25,3 +25,5 @@ pandas>=2.0.0
 
 # Dependencias para GPU AMD / ROCm (ver documentación de AMD)
 # (Nota: puede que instales versiones específicas de torch/torchvision para ROCm según tu hardware)
+
+torchmetrics
