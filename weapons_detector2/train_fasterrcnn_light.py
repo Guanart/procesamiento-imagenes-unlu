@@ -17,6 +17,7 @@ import random
 from typing import Dict, List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
+import cv2
 
 # Configuración ROCm para AMD (reduce fragmentación de memoria)
 os.environ["PYTORCH_HIP_ALLOC_CONF"] = "expandable_segments:True"
@@ -28,6 +29,9 @@ from torch.utils.data import Dataset, DataLoader
 from torchmetrics.detection import MeanAveragePrecision
 import xml.etree.ElementTree as ET
 from tqdm import tqdm
+
+# Importar el enhancer
+from image_enhancer import ImageEnhancer
 import psutil
 
 # --- CONFIGURACIÓN GLOBAL ---
@@ -84,14 +88,21 @@ def parse_voc_xml(xml_path: Path) -> Tuple[str, List[Tuple[int, int, int, int, i
 class WeaponDetectionDataset(Dataset):
     """
     Dataset que carga imágenes, las redimensiona y ajusta las bounding boxes al vuelo.
+    Aplica mejoramiento de imagen (CLAHE, denoising, sharpening) antes de procesar.
     """
 
     def __init__(
-        self, images_dir: Path, xml_files: List[Path], resize_to: Tuple[int, int]
+        self, images_dir: Path, xml_files: List[Path], resize_to: Tuple[int, int], use_enhancement: bool = True
     ):
         self.images_dir = images_dir
         self.resize_to = resize_to
         self.samples = []
+        self.use_enhancement = use_enhancement
+        
+        # Inicializar el enhancer
+        if self.use_enhancement:
+            self.enhancer = ImageEnhancer()
+            print("✅ ImageEnhancer inicializado para mejorar calidad de imágenes")
 
         print(f"📦 Parseando {len(xml_files)} archivos XML...")
         for xml in tqdm(xml_files, desc="Parseando XMLs", leave=False):
@@ -118,10 +129,24 @@ class WeaponDetectionDataset(Dataset):
     def __getitem__(self, idx):
         img_path, boxes_data = self.samples[idx]
 
-        img = torchvision.io.read_image(str(img_path))
+        # Cargar imagen con OpenCV para aplicar enhancement
+        img_cv = cv2.imread(str(img_path))
+        if img_cv is None:
+            raise ValueError(f"No se pudo cargar la imagen: {img_path}")
+        
+        # Aplicar enhancement si está habilitado
+        if self.use_enhancement:
+            img_cv = self.enhancer.enhance(img_cv)
+        
+        # Convertir de BGR a RGB
+        img_cv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
+        
+        # Guardar dimensiones originales
+        original_height, original_width = img_cv.shape[:2]
+        
+        # Convertir a tensor de PyTorch
+        img = torch.from_numpy(img_cv).permute(2, 0, 1)  # HWC -> CHW
         img = img[:3]  # Asegurar 3 canales (RGB)
-
-        original_height, original_width = img.shape[1:]
 
         # --- Redimensionamiento de la imagen ---
         img = F.resize(img, list(self.resize_to), antialias=True)
@@ -224,6 +249,42 @@ def evaluate_model(model, dataloader, device):
     return stats
 
 
+def load_checkpoint(checkpoint_path: Path, model, optimizer=None):
+    """
+    Carga un checkpoint guardado.
+    
+    Args:
+        checkpoint_path: Ruta al archivo .pth
+        model: Modelo a cargar
+        optimizer: Optimizador (opcional)
+        
+    Returns:
+        Diccionario con información del checkpoint
+    """
+    print(f"📥 Cargando checkpoint: {checkpoint_path}")
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    
+    # Cargar pesos del modelo
+    if 'model_state_dict' in checkpoint:
+        model.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        # Compatibilidad con modelos antiguos (solo state_dict)
+        model.load_state_dict(checkpoint)
+    
+    # Cargar optimizador si existe
+    if optimizer is not None and 'optimizer_state_dict' in checkpoint:
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    
+    info = {
+        'epoch': checkpoint.get('epoch', 0),
+        'best_map': checkpoint.get('best_map', -1.0),
+        'history': checkpoint.get('history', [])
+    }
+    
+    print(f"✅ Checkpoint cargado (Época {info['epoch']}, mAP: {info['best_map']:.4f})")
+    return info
+
+
 def train(args):
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -240,10 +301,13 @@ def train(args):
     split_idx = int(len(xml_files) * args.train_split)
     train_xml, val_xml = xml_files[:split_idx], xml_files[split_idx:]
 
+    # Crear datasets con o sin enhancement según el argumento
     train_ds = WeaponDetectionDataset(
-        Path(args.images_dir), train_xml, resize_to=RESIZE_TO
+        Path(args.images_dir), train_xml, resize_to=RESIZE_TO, use_enhancement=args.enhance
     )
-    val_ds = WeaponDetectionDataset(Path(args.images_dir), val_xml, resize_to=RESIZE_TO)
+    val_ds = WeaponDetectionDataset(
+        Path(args.images_dir), val_xml, resize_to=RESIZE_TO, use_enhancement=args.enhance
+    )
 
     num_workers = min(os.cpu_count(), 4) if device.type == "cuda" else 0
     train_loader = DataLoader(
@@ -270,10 +334,31 @@ def train(args):
     scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
 
     best_map = -1.0
+    best_val_loss = float('inf')
+    patience_counter = 0
     history = []
+    start_epoch = 1
+
+    # Reanudar desde checkpoint si se especifica
+    if args.resume:
+        checkpoint_path = Path(args.resume)
+        if checkpoint_path.exists():
+            checkpoint_info = load_checkpoint(checkpoint_path, model, optimizer)
+            start_epoch = checkpoint_info['epoch'] + 1
+            best_map = checkpoint_info['best_map']
+            history = checkpoint_info['history']
+            print(f"🔄 Reanudando desde época {start_epoch}")
+        else:
+            print(f"⚠️  Checkpoint no encontrado: {checkpoint_path}")
+            print("   Iniciando entrenamiento desde cero...")
 
     print(f"\n🚀 INICIANDO ENTRENAMIENTO...")
-    for epoch in range(1, args.epochs + 1):
+    print(f"📊 Épocas: {start_epoch} → {args.epochs}")
+    print(f"💾 Guardando checkpoints cada {args.save_every} épocas")
+    print(f"⏸️  Early stopping con paciencia = {args.patience} épocas")
+    print("=" * 60)
+    
+    for epoch in range(start_epoch, args.epochs + 1):
         mem_used_gb = psutil.virtual_memory().used / (1024**3)
         if mem_used_gb > args.ram_limit:
             print(
@@ -338,16 +423,68 @@ def train(args):
         }
         history.append(epoch_info)
 
+        # Guardar mejor modelo por mAP
         if val_stats["map"] > best_map:
             best_map = val_stats["map"]
-            torch.save(model.state_dict(), out_dir / "best_model.pth")
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'best_map': best_map,
+                'history': history
+            }, out_dir / "best_model.pth")
             print(f"💾 ¡Mejor modelo guardado! (mAP: {best_map:.4f})")
+        
+        # Early stopping basado en validation loss
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            patience_counter = 0
+        else:
+            patience_counter += 1
+            print(f"⚠️  Val Loss no mejoró ({patience_counter}/{args.patience})")
+            
+            if patience_counter >= args.patience:
+                print(f"\n⏸️  EARLY STOPPING activado! Val Loss no mejoró en {args.patience} épocas")
+                print(f"✅ Mejor mAP alcanzado: {best_map:.4f}")
+                break
+        
+        # Guardar checkpoint cada N épocas
+        if epoch % args.save_every == 0:
+            checkpoint_path = out_dir / f"checkpoint_epoch_{epoch}.pth"
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'train_loss': avg_train_loss,
+                'val_loss': avg_val_loss,
+                'map': float(val_stats["map"]),
+                'best_map': best_map,
+                'history': history
+            }, checkpoint_path)
+            print(f"📦 Checkpoint guardado: {checkpoint_path.name}")
 
+    # Guardar metadata y gráficos al finalizar
+    # Guardar metadata y gráficos al finalizar
     (out_dir / "classes.json").write_text(json.dumps({"classes": CLASS_MAP}, indent=2))
     (out_dir / "training_log.json").write_text(json.dumps(history, indent=2))
     plot_history(history, str(out_dir))
 
-    print("\n✅ Entrenamiento completado.")
+    print("\n" + "=" * 60)
+    print("✅ ENTRENAMIENTO COMPLETADO")
+    print("=" * 60)
+    print(f"📊 Épocas completadas: {len(history)}/{args.epochs}")
+    print(f"🏆 Mejor mAP alcanzado: {best_map:.4f}")
+    print(f"💾 Mejor modelo: {out_dir / 'best_model.pth'}")
+    
+    # Listar checkpoints guardados
+    checkpoints = sorted(out_dir.glob("checkpoint_epoch_*.pth"))
+    if checkpoints:
+        print(f"📦 Checkpoints guardados: {len(checkpoints)}")
+        for cp in checkpoints:
+            print(f"   - {cp.name}")
+    
+    print(f"📁 Resultados en: {out_dir}")
+    print("=" * 60)
 
 
 def get_args():
@@ -377,6 +514,22 @@ def get_args():
         "--amp", action="store_true", help="Activar Automatic Mixed Precision (AMP)"
     )
     ap.add_argument("--ram-limit", type=float, default=28.0, help="Límite de RAM en GB")
+    ap.add_argument(
+        "--enhance", action="store_true", 
+        help="Activar mejoramiento de imágenes (CLAHE, denoising, sharpening)"
+    )
+    ap.add_argument(
+        "--save-every", type=int, default=15,
+        help="Guardar checkpoint cada N épocas (default: 15)"
+    )
+    ap.add_argument(
+        "--patience", type=int, default=5,
+        help="Early stopping: detener si val_loss no mejora por N épocas (default: 5)"
+    )
+    ap.add_argument(
+        "--resume", type=str, default=None,
+        help="Ruta al checkpoint para reanudar entrenamiento (ej: results_light/checkpoint_epoch_30.pth)"
+    )
     return ap.parse_args()
 
 

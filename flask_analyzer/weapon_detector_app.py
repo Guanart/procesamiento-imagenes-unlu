@@ -15,6 +15,8 @@ import base64
 import json
 from datetime import datetime
 import numpy as np
+import threading
+import queue
 
 # Añadir directorio raíz al path para imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -72,6 +74,10 @@ print("✅ Pipeline listo")
 # Variable global para control de webcam
 webcam_active = False
 current_webcam = None
+
+# Diccionario global para trackear progreso de procesamiento de videos
+# Format: {job_id: {'current': X, 'total': Y, 'detections': Z, 'status': 'processing'}}
+processing_jobs = {}
 
 
 @app.route('/')
@@ -137,23 +143,61 @@ def detect_file():
             })
         
         elif file_ext.lower() in video_exts:
-            # Procesar video
+            # Procesar video en background con progreso
             output_filename = f"result_{timestamp}.mp4"
             output_path = Path(app.config['RESULTS_FOLDER']) / output_filename
             
             frame_skip = int(request.form.get('frame_skip', 2))
-            _, frames_processed, total_detections = pipeline.process_video(
-                str(input_path),
-                str(output_path),
-                frame_skip=frame_skip
-            )
+            
+            # Crear job_id único
+            job_id = f"video_{timestamp}"
+            processing_jobs[job_id] = {
+                'status': 'starting',
+                'current': 0,
+                'total': 0,
+                'detections': 0,
+                'output_filename': output_filename
+            }
+            
+            # Procesar en thread separado
+            def process_video_with_progress():
+                try:
+                    # Wrapper para actualizar progreso
+                    def progress_callback(current, total, detections):
+                        processing_jobs[job_id].update({
+                            'status': 'processing',
+                            'current': current,
+                            'total': total,
+                            'detections': detections
+                        })
+                    
+                    _, frames_processed, total_detections = pipeline.process_video(
+                        str(input_path),
+                        str(output_path),
+                        frame_skip=frame_skip,
+                        progress_callback=progress_callback
+                    )
+                    
+                    processing_jobs[job_id].update({
+                        'status': 'completed',
+                        'current': frames_processed,
+                        'total': frames_processed,
+                        'detections': total_detections
+                    })
+                except Exception as e:
+                    processing_jobs[job_id].update({
+                        'status': 'error',
+                        'error': str(e)
+                    })
+            
+            thread = threading.Thread(target=process_video_with_progress, daemon=True)
+            thread.start()
             
             return jsonify({
                 'success': True,
                 'type': 'video',
-                'frames_processed': frames_processed,
-                'detections': total_detections,
-                'result_url': f'/results/weapons/{output_filename}'
+                'job_id': job_id,
+                'message': 'Procesamiento iniciado'
             })
         
         else:
@@ -165,6 +209,21 @@ def detect_file():
         # Limpiar archivo de entrada
         if input_path.exists():
             input_path.unlink()
+
+
+@app.route('/api/progress/<job_id>')
+def get_progress(job_id):
+    """Endpoint para consultar el progreso de un job de procesamiento."""
+    if job_id not in processing_jobs:
+        return jsonify({'error': 'Job no encontrado'}), 404
+    
+    job_data = processing_jobs[job_id].copy()
+    
+    # Si está completado, agregar la URL del resultado
+    if job_data['status'] == 'completed':
+        job_data['result_url'] = f"/results/weapons/{job_data['output_filename']}"
+    
+    return jsonify(job_data)
 
 
 @app.route('/results/weapons/<filename>')

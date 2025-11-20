@@ -11,7 +11,7 @@ from torchvision.transforms import functional as F
 from pathlib import Path
 from ultralytics import YOLO
 import numpy as np
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Callable
 import tempfile
 import shutil
 import subprocess
@@ -246,7 +246,8 @@ class WeaponDetectionPipeline:
         self,
         video_path: str,
         output_path: Optional[str] = None,
-        frame_skip: int = 1
+        frame_skip: int = 2,
+        progress_callback: Optional[Callable[[int, int, int], None]] = None
     ) -> Tuple[Optional[str], int, int]:
         """
         Procesa un video completo.
@@ -255,6 +256,7 @@ class WeaponDetectionPipeline:
             video_path: Ruta al video de entrada
             output_path: Ruta opcional para guardar el video procesado
             frame_skip: Procesar 1 de cada N frames (para acelerar)
+            progress_callback: Función callback(current_frame, total_frames, detections) para reportar progreso
             
         Returns:
             Tupla (ruta_video_salida, total_frames_procesados, total_detecciones)
@@ -310,6 +312,10 @@ class WeaponDetectionPipeline:
                     
                     if writer:
                         writer.write(annotated_frame)
+                    
+                    # Reportar progreso mediante callback
+                    if progress_callback:
+                        progress_callback(processed_count, total_frames//frame_skip, total_detections)
                     
                     # Mostrar progreso cada 30 frames
                     if processed_count % 30 == 0:

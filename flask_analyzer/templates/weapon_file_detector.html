@@ -141,28 +141,123 @@
         }
 
         .progress {
-            margin-top: 20px;
+            margin-top: 30px;
             display: none;
+        }
+
+        .progress-container {
+            background: #f8f9ff;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.1);
+        }
+
+        .progress-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            color: #667eea;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .progress-spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid #e8eaff;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
 
         .progress-bar {
             width: 100%;
-            height: 30px;
-            background: #f0f0f0;
-            border-radius: 15px;
+            height: 40px;
+            background: #e8eaff;
+            border-radius: 20px;
             overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .progress-bar-fill {
             height: 100%;
             background: linear-gradient(90deg, #667eea, #764ba2);
             width: 0%;
-            transition: width 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
+            transition: width 0.5s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255,255,255,0.3),
+                transparent
+            );
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #333;
             font-weight: bold;
+            font-size: 0.95em;
+            text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+            z-index: 1;
+            white-space: nowrap;
+        }
+
+        .progress-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            gap: 15px;
+        }
+
+        .stat-item {
+            flex: 1;
+            background: white;
+            padding: 12px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-value.detections {
+            color: #764ba2;
         }
 
         .results {
@@ -251,8 +346,29 @@
             <div class="alert success" id="successAlert"></div>
 
             <div class="progress" id="progress">
-                <div class="progress-bar">
-                    <div class="progress-bar-fill" id="progressFill">Procesando...</div>
+                <div class="progress-container">
+                    <div class="progress-title">
+                        <div class="progress-spinner"></div>
+                        <span id="progressTitle">Procesando video...</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-bar-fill" id="progressFill"></div>
+                        <div class="progress-text" id="progressText">0%</div>
+                    </div>
+                    <div class="progress-stats">
+                        <div class="stat-item">
+                            <div class="stat-label">Frames Procesados</div>
+                            <div class="stat-value" id="statFrames">0 / 0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Detecciones</div>
+                            <div class="stat-value detections" id="statDetections">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Progreso</div>
+                            <div class="stat-value" id="statPercent">0%</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -274,6 +390,11 @@
         const processBtn = document.getElementById('processBtn');
         const progress = document.getElementById('progress');
         const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const progressTitle = document.getElementById('progressTitle');
+        const statFrames = document.getElementById('statFrames');
+        const statDetections = document.getElementById('statDetections');
+        const statPercent = document.getElementById('statPercent');
         const results = document.getElementById('results');
         const resultImage = document.getElementById('resultImage');
         const resultVideo = document.getElementById('resultVideo');
@@ -326,7 +447,12 @@
             hideAlerts();
             processBtn.disabled = true;
             progress.style.display = 'block';
-            progressFill.style.width = '50%';
+            progressFill.style.width = '10%';
+            progressText.textContent = 'Iniciando...';
+            progressTitle.textContent = 'Preparando procesamiento...';
+            statFrames.textContent = '0 / 0';
+            statDetections.textContent = '0';
+            statPercent.textContent = '0%';
             results.style.display = 'none';
 
             const formData = new FormData();
@@ -344,16 +470,94 @@
 
                 if (data.error) {
                     showError(data.error);
+                    progress.style.display = 'none';
+                } else if (data.job_id) {
+                    // Video procesándose en background - hacer polling del progreso
+                    pollProgress(data.job_id);
                 } else {
+                    // Imagen procesada inmediatamente
                     showSuccess(data);
+                    progress.style.display = 'none';
                 }
             } catch (error) {
                 showError('Error de conexión: ' + error.message);
-            } finally {
                 progress.style.display = 'none';
-                processBtn.disabled = false;
+            } finally {
+                // No deshabilitamos el botón aquí si hay polling activo
+                if (!document.getElementById('progressFill').textContent.includes('%')) {
+                    processBtn.disabled = false;
+                }
             }
         });
+
+        let pollInterval = null;
+
+        function pollProgress(jobId) {
+            if (pollInterval) clearInterval(pollInterval);
+            
+            pollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/progress/${jobId}`);
+                    const data = await response.json();
+
+                    if (data.error) {
+                        clearInterval(pollInterval);
+                        showError(data.error);
+                        progress.style.display = 'none';
+                        processBtn.disabled = false;
+                        return;
+                    }
+
+                    // Actualizar barra de progreso y estadísticas
+                    if (data.status === 'processing' && data.total > 0) {
+                        const percentage = Math.round((data.current / data.total) * 100);
+                        progressFill.style.width = percentage + '%';
+                        progressText.textContent = `${percentage}%`;
+                        progressTitle.textContent = '🎬 Procesando video...';
+                        statFrames.textContent = `${data.current} / ${data.total}`;
+                        statDetections.textContent = data.detections;
+                        statPercent.textContent = `${percentage}%`;
+                    } else if (data.status === 'starting') {
+                        progressFill.style.width = '10%';
+                        progressText.textContent = 'Iniciando...';
+                        progressTitle.textContent = '⚙️ Preparando procesamiento...';
+                        statFrames.textContent = '0 / 0';
+                        statDetections.textContent = '0';
+                        statPercent.textContent = '0%';
+                    } else if (data.status === 'completed') {
+                        clearInterval(pollInterval);
+                        progressFill.style.width = '100%';
+                        progressText.textContent = '100%';
+                        progressTitle.textContent = '✅ ¡Completado!';
+                        statFrames.textContent = `${data.current} / ${data.current}`;
+                        statDetections.textContent = data.detections;
+                        statPercent.textContent = '100%';
+                        
+                        // Mostrar resultado
+                        setTimeout(() => {
+                            showSuccess({
+                                type: 'video',
+                                detections: data.detections,
+                                frames_processed: data.current,
+                                result_url: data.result_url
+                            });
+                            progress.style.display = 'none';
+                            processBtn.disabled = false;
+                        }, 1000);
+                    } else if (data.status === 'error') {
+                        clearInterval(pollInterval);
+                        showError(data.error || 'Error durante el procesamiento');
+                        progress.style.display = 'none';
+                        processBtn.disabled = false;
+                    }
+                } catch (error) {
+                    clearInterval(pollInterval);
+                    showError('Error consultando progreso: ' + error.message);
+                    progress.style.display = 'none';
+                    processBtn.disabled = false;
+                }
+            }, 1000); // Consultar cada segundo
+        }
 
         function showSuccess(data) {
             results.style.display = 'block';
