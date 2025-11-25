@@ -18,6 +18,7 @@ from typing import Dict, List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import cv2
+import concurrent.futures
 
 # Configuración ROCm para AMD (reduce fragmentación de memoria)
 os.environ["PYTORCH_HIP_ALLOC_CONF"] = "expandable_segments:True"
@@ -104,11 +105,22 @@ class WeaponDetectionDataset(Dataset):
             self.enhancer = ImageEnhancer()
             print("✅ ImageEnhancer inicializado para mejorar calidad de imágenes")
 
-        print(f"📦 Parseando {len(xml_files)} archivos XML...")
-        for xml in tqdm(xml_files, desc="Parseando XMLs", leave=False):
-            fname, boxes = parse_voc_xml(xml)
+        print(f"📦 Parseando {len(xml_files)} archivos XML (usando hilos para optimizar I/O de Drive)...")
+        
+        # CAMBIO: Usamos ThreadPoolExecutor en lugar de ProcessPoolExecutor.
+        # En Google Colab con Drive, el cuello de botella es la latencia de red/disco (I/O), no la CPU.
+        # Usamos más workers (16) para paralelizar las peticiones de lectura y ocultar la latencia.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+            results = list(tqdm(executor.map(parse_voc_xml, xml_files), total=len(xml_files), desc="Parseando XMLs", leave=False))
+
+        # Procesamos los resultados (resolución de rutas de imagen)
+        for res in results:
+            if not res:
+                continue
+            fname, boxes = res
             if not fname or not boxes:
                 continue
+            
             img_path = self._resolve_image(fname)
             if img_path:
                 self.samples.append((img_path, boxes))
