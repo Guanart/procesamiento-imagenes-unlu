@@ -19,6 +19,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 import concurrent.futures
+import shutil
+import tempfile
 
 # Configuración ROCm para AMD (reduce fragmentación de memoria)
 os.environ["PYTORCH_HIP_ALLOC_CONF"] = "expandable_segments:True"
@@ -105,13 +107,12 @@ class WeaponDetectionDataset(Dataset):
             self.enhancer = ImageEnhancer()
             print("✅ ImageEnhancer inicializado para mejorar calidad de imágenes")
 
-        print(f"📦 Parseando {len(xml_files)} archivos XML (usando hilos para optimizar I/O de Drive)...")
+        print(f"📦 Parseando {len(xml_files)} archivos XML (usando CPU multi-core)...")
         
-        # CAMBIO: Usamos ThreadPoolExecutor en lugar de ProcessPoolExecutor.
-        # En Google Colab con Drive, el cuello de botella es la latencia de red/disco (I/O), no la CPU.
-        # Usamos más workers (16) para paralelizar las peticiones de lectura y ocultar la latencia.
-        with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
-            results = list(tqdm(executor.map(parse_voc_xml, xml_files), total=len(xml_files), desc="Parseando XMLs", leave=False))
+        # Usamos ProcessPoolExecutor para aprovechar todos los núcleos de la CPU para el parsing XML
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            # Mapeamos la función parse_voc_xml a todos los archivos
+            results = list(tqdm(executor.map(parse_voc_xml, xml_files), total=len(xml_files), desc="Parseando XMLs (CPU)", leave=False))
 
         # Procesamos los resultados (resolución de rutas de imagen)
         for res in results:
@@ -202,9 +203,22 @@ def create_model(num_classes: int, use_pretrained: bool = True):
         num_classes: Número de clases (incluyendo background)
         use_pretrained: Si True, descarga pesos pre-entrenados. Si False, inicia desde cero.
     """
-    model = torchvision.models.detection.fasterrcnn_mobilenet_v3_large_fpn(
-        weights="DEFAULT" if use_pretrained else None
-    )
+    weights = "DEFAULT" if use_pretrained else None
+    # Evitar descarga del backbone si no se usa pretrained
+    weights_backbone = "DEFAULT" if use_pretrained else None
+    
+    try:
+        model = torchvision.models.detection.fasterrcnn_mobilenet_v3_large_fpn(
+            weights=weights,
+            weights_backbone=weights_backbone
+        )
+    except TypeError:
+        # Fallback para versiones antiguas de torchvision
+        model = torchvision.models.detection.fasterrcnn_mobilenet_v3_large_fpn(
+            pretrained=use_pretrained,
+            pretrained_backbone=use_pretrained
+        )
+
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = (
         torchvision.models.detection.faster_rcnn.FastRCNNPredictor(
@@ -315,17 +329,46 @@ def train(args):
         print(f"GPU: {torch.cuda.get_device_name(0)}")
     print("=" * 60)
 
-    xml_files = sorted(Path(args.xml_dir).glob("*.xml"))
+    # --- CACHING DATASET (Optimización para Colab) ---
+    images_dir_path = Path(args.images_dir)
+    xml_dir_path = Path(args.xml_dir)
+
+    if args.cache:
+        print("🚀 Copiando dataset a disco local (SSD) para acelerar entrenamiento...")
+        # Usar /content si existe (Colab), sino tempdir
+        base_temp = Path("/content") if Path("/content").exists() else Path(tempfile.gettempdir())
+        temp_dataset_dir = base_temp / "temp_dataset_cache"
+        
+        if temp_dataset_dir.exists():
+            print(f"   ⚠️ Limpiando caché anterior en {temp_dataset_dir}...")
+            shutil.rmtree(temp_dataset_dir)
+        
+        temp_dataset_dir.mkdir(parents=True, exist_ok=True)
+        
+        local_images = temp_dataset_dir / "images"
+        local_xmls = temp_dataset_dir / "xmls"
+        
+        print(f"   📂 Copiando imágenes a {local_images} ...")
+        shutil.copytree(images_dir_path, local_images)
+        
+        print(f"   📂 Copiando XMLs a {local_xmls} ...")
+        shutil.copytree(xml_dir_path, local_xmls)
+        
+        print("✅ Dataset copiado exitosamente. Usando rutas locales.")
+        images_dir_path = local_images
+        xml_dir_path = local_xmls
+
+    xml_files = sorted(xml_dir_path.glob("*.xml"))
     random.shuffle(xml_files)
     split_idx = int(len(xml_files) * args.train_split)
     train_xml, val_xml = xml_files[:split_idx], xml_files[split_idx:]
 
     # Crear datasets con o sin enhancement según el argumento
     train_ds = WeaponDetectionDataset(
-        Path(args.images_dir), train_xml, resize_to=RESIZE_TO, use_enhancement=args.enhance
+        images_dir_path, train_xml, resize_to=RESIZE_TO, use_enhancement=args.enhance
     )
     val_ds = WeaponDetectionDataset(
-        Path(args.images_dir), val_xml, resize_to=RESIZE_TO, use_enhancement=args.enhance
+        images_dir_path, val_xml, resize_to=RESIZE_TO, use_enhancement=args.enhance
     )
 
     num_workers = min(os.cpu_count(), 4) if device.type == "cuda" else 0
@@ -346,10 +389,10 @@ def train(args):
         pin_memory=True,
     )
 
-    # Determinar si usar pesos pre-entrenados (solo si NO se reanuda desde checkpoint)
-    use_pretrained = not args.resume or not Path(args.resume).exists()
-    
-    model = create_model(NUM_CLASSES, use_pretrained=use_pretrained).to(device)
+    # Siempre inicializar con use_pretrained=True para mantener la consistencia
+    # de los parámetros (requires_grad) con el checkpoint original.
+    # Aunque se sobreescriban los pesos, la estructura del optimizador debe coincidir.
+    model = create_model(NUM_CLASSES, use_pretrained=True).to(device)
     optimizer = torch.optim.Adam(
         [p for p in model.parameters() if p.requires_grad], lr=args.lr
     )
@@ -551,6 +594,10 @@ def get_args():
     ap.add_argument(
         "--resume", type=str, default=None,
         help="Ruta al checkpoint para reanudar entrenamiento (ej: results_light/checkpoint_epoch_30.pth)"
+    )
+    ap.add_argument(
+        "--cache", action="store_true",
+        help="Copiar dataset a disco local (recomendado para Colab/Drive) para acelerar entrenamiento"
     )
     return ap.parse_args()
 

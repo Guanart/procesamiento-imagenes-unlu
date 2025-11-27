@@ -143,6 +143,9 @@ class TrainingPipeline:
         if self.config["resume"]:
             command.extend(["--resume", self.config["resume"]])
         
+        if self.config.get("cache", False):
+            command.append("--cache")
+        
         return self.run_command("3. Train Model", command)
     
     def stage_4_test(self) -> bool:
@@ -330,6 +333,8 @@ Ejemplos de uso:
                         help="Activar Automatic Mixed Precision")
     parser.add_argument("--resume", type=str, default=None,
                         help="Reanudar desde checkpoint")
+    parser.add_argument("--cache", action="store_true",
+                        help="Copiar dataset a disco local para acelerar entrenamiento")
     
     # Parámetros de testing
     parser.add_argument("--confidence", type=float, default=0.5,
@@ -373,6 +378,7 @@ def main():
         "enhance": args.enhance,
         "amp": args.amp,
         "resume": args.resume,
+        "cache": args.cache,
         "confidence": args.confidence,
         "no_save_test_images": args.no_save_test_images,
         "skip_stages": args.skip_stages,
