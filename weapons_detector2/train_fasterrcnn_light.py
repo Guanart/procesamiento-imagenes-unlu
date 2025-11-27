@@ -182,9 +182,16 @@ def collate_fn(batch):
     return tuple(zip(*batch))
 
 
-def create_model(num_classes: int):
+def create_model(num_classes: int, use_pretrained: bool = True):
+    """
+    Crea el modelo Faster R-CNN.
+    
+    Args:
+        num_classes: Número de clases (incluyendo background)
+        use_pretrained: Si True, descarga pesos pre-entrenados. Si False, inicia desde cero.
+    """
     model = torchvision.models.detection.fasterrcnn_mobilenet_v3_large_fpn(
-        weights="DEFAULT"
+        weights="DEFAULT" if use_pretrained else None
     )
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = (
@@ -327,11 +334,14 @@ def train(args):
         pin_memory=True,
     )
 
-    model = create_model(NUM_CLASSES).to(device)
+    # Determinar si usar pesos pre-entrenados (solo si NO se reanuda desde checkpoint)
+    use_pretrained = not args.resume or not Path(args.resume).exists()
+    
+    model = create_model(NUM_CLASSES, use_pretrained=use_pretrained).to(device)
     optimizer = torch.optim.Adam(
         [p for p in model.parameters() if p.requires_grad], lr=args.lr
     )
-    scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
+    scaler = torch.amp.GradScaler(device.type, enabled=args.amp)
 
     best_map = -1.0
     best_val_loss = float('inf')
