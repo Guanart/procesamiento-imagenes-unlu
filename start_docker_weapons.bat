@@ -18,13 +18,29 @@ if errorlevel 1 (
 echo Docker detectado
 echo.
 
+REM Detectar comando docker compose
+docker compose version >nul 2>&1
+if errorlevel 1 (
+    docker-compose version >nul 2>&1
+    if errorlevel 1 (
+        echo Error: Docker Compose no esta instalado
+        pause
+        exit /b 1
+    ) else (
+        set "DOCKER_COMPOSE=docker-compose"
+    )
+) else (
+    set "DOCKER_COMPOSE=docker compose"
+)
+
 REM Verificar modelo de armas
-if not exist "..\weapons_detector2\results_light\best_model.pth" (
+set "MODEL_PATH=models\weapon_detection\best_model.pth"
+if not exist "%MODEL_PATH%" (
     echo Error: Modelo de armas no encontrado
-    echo Ubicacion esperada: weapons_detector2\results_light\best_model.pth
+    echo Ubicacion esperada: %MODEL_PATH%
     echo.
     echo Entrena el modelo primero:
-    echo python weapons_detector2\train_fasterrcnn_light.py --amp
+    echo cd src\weapon_detection\training ^&^& python pipeline.py --skip-stages split augment
     pause
     exit /b 1
 )
@@ -33,23 +49,25 @@ echo Modelo de armas encontrado
 echo.
 
 REM Verificar modelo YOLO
-if not exist "..\person_extraction\yolov8n.pt" (
+set "YOLO_PATH=src\person_extraction\yolov8n.pt"
+if not exist "%YOLO_PATH%" (
     echo Descargando modelo YOLOv8...
-    if not exist "..\person_extraction" mkdir "..\person_extraction"
-    cd ..\person_extraction
+    if not exist "src\person_extraction" mkdir "src\person_extraction"
+    pushd src\person_extraction
     python -c "from ultralytics import YOLO; YOLO('yolov8n.pt')"
-    cd ..\flask_analyzer
+    popd
 )
 
 echo Modelo YOLO encontrado
 echo.
 
 REM Crear directorios
-if not exist "uploads\weapons" mkdir uploads\weapons
-if not exist "results\weapons" mkdir results\weapons
+if not exist "apps\image_lab\uploads" mkdir apps\image_lab\uploads
+if not exist "apps\weapon_monitor\uploads\weapons" mkdir apps\weapon_monitor\uploads\weapons
+if not exist "apps\weapon_monitor\results\weapons" mkdir apps\weapon_monitor\results\weapons
 
 echo Construyendo imagen Docker...
-docker-compose build
+call :compose build
 
 if errorlevel 1 (
     echo Error al construir la imagen
@@ -84,28 +102,30 @@ goto invalid
 :start_detached
 echo.
 echo Iniciando contenedor en segundo plano...
-docker-compose up -d
+call :compose up -d
 if not errorlevel 1 (
     echo.
     echo Contenedor iniciado
     echo.
-    echo Accede a: http://localhost:5001
+    echo Accede a:
+    echo   - http://localhost:5000 ^(Image Lab^)
+    echo   - http://localhost:5001 ^(Weapon Monitor^)
     echo.
-    echo Para ver logs: docker-compose logs -f
-    echo Para detener: docker-compose down
+    echo Para ver logs: %DOCKER_COMPOSE% logs -f
+    echo Para detener: %DOCKER_COMPOSE% down
 )
 goto end
 
 :start_interactive
 echo.
 echo Iniciando contenedor ^(presiona Ctrl+C para detener^)...
-docker-compose up
+call :compose up
 goto end
 
 :stop
 echo.
 echo Deteniendo contenedor...
-docker-compose down
+call :compose down
 echo Contenedor detenido
 goto end
 
@@ -113,13 +133,13 @@ goto end
 echo.
 echo Logs del contenedor ^(presiona Ctrl+C para salir^):
 echo.
-docker-compose logs -f
+call :compose logs -f
 goto end
 
 :restart
 echo.
 echo Reiniciando contenedor...
-docker-compose restart
+call :compose restart
 echo Contenedor reiniciado
 goto end
 
@@ -127,8 +147,8 @@ goto end
 echo.
 set /p confirm="Estas seguro? Esto eliminara el contenedor y la imagen [s/N]: "
 if /i "%confirm%"=="s" (
-    docker-compose down
-    docker rmi flask_analyzer-weapon-detector 2>nul
+    call :compose down
+    docker rmi weapon-monitor image-lab 2>nul
     echo Limpieza completada
 ) else (
     echo Operacion cancelada
@@ -148,3 +168,13 @@ exit /b 1
 echo.
 echo Presiona cualquier tecla para salir...
 pause >nul
+
+goto :eof
+
+:compose
+if "%DOCKER_COMPOSE%"=="docker compose" (
+    docker compose %*
+) else (
+    docker-compose %*
+)
+exit /b %errorlevel%

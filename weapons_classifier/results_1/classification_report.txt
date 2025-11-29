@@ -1,8 +1,0 @@
-              precision    recall  f1-score   support
-
-       knife     0.9825    0.9786    0.9805       515
-      pistol     0.9823    0.9855    0.9839       621
-
-    accuracy                         0.9824      1136
-   macro avg     0.9824    0.9821    0.9822      1136
-weighted avg     0.9824    0.9824    0.9824      1136

@@ -1,240 +1,163 @@
-# Sistema de Detección de Armas en Tiempo Real
+# Sistema de Detección de Armas
 
+Repositorio académico (UNLu) para detectar armas blancas y de fuego en personas. El proyecto combina entrenamiento de Faster R-CNN, un pipeline de inferencia completo y dos aplicaciones Flask desplegables con Docker.
 
+## Componentes principales
 
-Sistema completo de detección de armas en imágenes y videos utilizando Deep Learning. El sistema identifica personas en el contenido multimedia, mejora las imágenes y detecta armas (cuchillos y pistolas) con modelos de detección de objetos.Proyecto de detección de armas (pistola/cuchillo) en personas usando Faster R-CNN optimizado para AMD ROCm (Radeon 780M iGPU).
+1. **Entrenamiento** (`src/weapon_detection/training/`): scripts para dividir el dataset, aumentarlo, entrenar Faster R-CNN y validar métricas.
+2. **Inferencia** (`src/weapon_detection/inference/detector_pipeline.py`): pipeline extremo a extremo que recorta personas con YOLOv8, mejora cada recorte y detecta armas.
+3. **Aplicaciones web** (`apps/`):
+   - `image_lab/`: laboratorio visual para analizar histograma y metadatos de imágenes.
+   - `weapon_monitor/`: dashboard drag & drop con inferencia de imágenes, videos y webcam + API REST.
 
+## Requisitos y entornos
 
+Las dependencias están modularizadas en `requirements/` para instalar solo lo necesario:
 
-## 📋 Índice---
+| Archivo | Contenido |
+| --- | --- |
+| `requirements/base.txt` | Inferencia, CLI y utilidades compartidas |
+| `requirements/training.txt` | Paquetes extra para entrenamiento (`-r base.txt`) |
+| `requirements/apps/image_lab.txt` | Dependencias específicas de Image Lab |
+| `requirements/apps/weapon_monitor.txt` | Flask + librerías de Weapon Monitor (`-r ../base.txt`) |
 
-
-
-- [Descripción General](#descripción-general)## 🚀 Inicio Rápido
-
-- [Arquitectura del Sistema](#arquitectura-del-sistema)
-
-- [Módulos del Proyecto](#módulos-del-proyecto)### 1. Verificar GPU AMD
-
-- [Instalación](#instalación)```bash
-
-- [Uso](#uso)python check_gpu.py
-
-- [Entrenamiento del Modelo](#entrenamiento-del-modelo)```
-
-- [Aplicación Web](#aplicación-web)
-
-- [Docker](#docker)### 2. Entrenar detector
-
-# 🔫 Sistema de Detección de Armas en Imágenes y Video
-
-Proyecto académico UNLu para detección de armas (pistola/cuchillo) en personas usando Deep Learning (Faster R-CNN + YOLOv8 + Flask). Optimizado para GPU AMD/ROCm y CUDA.
-
----
-
-## 📋 Índice
-
-- [Descripción General](#descripción-general)
-- [Arquitectura](#arquitectura)
-- [Módulos](#módulos)
-- [Instalación](#instalación)
-- [Uso Rápido](#uso-rápido)
-- [Entrenamiento](#entrenamiento)
-- [API y Web](#api-y-web)
-- [Docker](#docker)
-- [Requisitos y Dependencias](#requisitos-y-dependencias)
-- [Estructura](#estructura)
-- [Problemas Comunes](#problemas-comunes)
-- [Licencia y Créditos](#licencia-y-créditos)
-
----
-
-## 🎯 Descripción General
-
-El sistema procesa videos e imágenes en tres etapas:
-1. **Extracción de Personas**: YOLOv8 detecta personas y recorta cada una.
-2. **Mejora de Imagen**: CLAHE y ajuste de brillo sobre cada recorte.
-3. **Detección de Armas**: Faster R-CNN identifica armas (knife, pistol) en los recortes.
-
-Características:
-- Detección de personas (YOLOv8n, COCO)
-- Mejora automática de imágenes
-- Detección de armas (Faster R-CNN, MobileNetV3)
-- Aplicación web Flask (drag & drop, webcam)
-- Pipeline CLI y API REST
-- Despliegue con Docker
-- Optimizado para GPU (AMP) y CPU
-
----
-
-## 🏗️ Arquitectura
-
-```
-Video/Imagen → [YOLOv8 Person Detection] → [Image Enhancement] → [Faster R-CNN Weapon Detection] → Resultado Anotado
-```
-
----
-
-## 📦 Módulos
-
-### 1. person_extraction/
-Extracción de personas desde videos/imágenes usando YOLOv8.
-- `video_processor.py`: Procesa videos, detecta personas, genera recortes
-- `image_enhancer.py`: Mejora imágenes con CLAHE y brillo
-- `yolov8n.pt`: Modelo YOLOv8 nano
-
-### 2. weapons_detector2/
-Entrenamiento y evaluación del detector de armas.
-- `train_fasterrcnn_light.py`: Entrenamiento Faster R-CNN
-- `test_light_model.py`: Inferencia en imágenes
-- `dataset/`: Imágenes + XML (Pascal VOC)
-- `results_light/best_model.pth`: Modelo entrenado
-
-### 3. weapon_detection_pipeline/
-Pipeline integrado: personas → mejora → armas.
-- `pipeline.py`: Orquestador CLI y programático
-
-### 4. flask_analyzer/
-Aplicación web Flask (drag & drop, webcam, API REST).
-- `weapon_detector_app.py`: Servidor Flask
-- `templates/`: HTML
-
----
-
-## 🔧 Instalación
-
-### Opción A: Docker (recomendado)
-```bash
-./start_docker_weapons.sh   # Linux/Mac
-start_docker_weapons.bat    # Windows
-```
-Acceder a http://localhost:5001
-
-### Opción B: Local
-```bash
-git clone <repo>
-cd procesamiento-imagenes-unlu
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements_weapon_detector.txt
-```
-
----
-
-## 🎮 Uso Rápido
+### Instalación rápida
 
 ```bash
-# Imagen
-python weapon_detection_pipeline/pipeline.py --mode image --input test.jpg --output out.jpg
-# Video
-python weapon_detection_pipeline/pipeline.py --mode video --input in.mp4 --output out.mp4 --frame-skip 5
-# Web
-python flask_analyzer/weapon_detector_app.py
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements/training.txt   # o el archivo que necesites
 ```
 
----
+Para trabajar solo con las apps web puedes instalar `requirements/apps/<app>.txt` dentro del mismo entorno.
 
-## 🧠 Entrenamiento
-
-```bash
-cd weapons_detector2
-python train_fasterrcnn_light.py --epochs 25 --batch-size 16 --amp
-```
-Hipótesis óptimas: 320x320 resize, batch 16, AMP activo, 25–50 épocas.
-
----
-
-## 🌐 API y Web
-
-**API REST:**
-```bash
-curl -X POST http://localhost:5001/api/detect-file -F "file=@imagen.jpg" -F "confidence=0.5"
-```
-Endpoints webcam: `/api/webcam/start`, `/api/webcam/stop`, `/api/webcam/stream`.
-
-**Web:**
-Abrir http://localhost:5001 y usar los módulos de archivos o webcam.
-
----
-
-## 🐳 Docker
-
-```bash
-docker-compose build --no-cache
-docker-compose up -d
-docker-compose logs -f
-docker-compose down
-```
-Volúmenes: modelo y resultados se actualizan sin reconstruir.
-
----
-
-## 📋 Requisitos y Dependencias
-
-**Archivo principal:** `requirements_weapon_detector.txt`
-
-Por defecto, sólo incluye dependencias mínimas para INFERENCIA y Web (producción):
-
-```text
-torch>=2.0.0
-torchvision>=0.15.0
-ultralytics>=8.0.0
-opencv-python>=4.8.0
-Pillow>=10.0.0
-numpy>=1.24.0
-Flask>=2.3.0
-```
-
-Extras para ENTRENAMIENTO (descomentar si se entrena el modelo):
-
-```text
-# torchmetrics>=1.0.0       # mAP y métricas avanzadas
-# tqdm>=4.65.0              # Barras de progreso
-# psutil>=5.9.0             # Monitoreo de recursos
-# scikit-learn>=1.2.0       # Métricas adicionales / split
-# matplotlib>=3.7.0         # Gráficos de entrenamiento
-# scipy>=1.10.0             # Dependencias científicas
-```
-
-Esto acelera la instalación y reduce el tamaño de la imagen Docker. Si vas a entrenar, instala los extras:
-
-```bash
-pip install torchmetrics tqdm psutil scikit-learn matplotlib scipy
-```
-
----
-
-## 📂 Estructura
+## Estructura
 
 ```
-procesamiento-imagenes-unlu/
-├── README.md
+.
+├── apps/
+│   ├── image_lab/
+│   │   ├── app.py
+│   │   ├── templates/
+│   │   └── Dockerfile
+│   └── weapon_monitor/
+│       ├── app.py
+│       ├── templates/
+│       └── Dockerfile
+├── docs/
+│   ├── RESUMEN_PIPELINE.md
+│   └── teoria/
+├── models/
+│   └── weapon_detection/best_model.pth
+├── requirements/
+├── src/
+│   ├── person_extraction/
+│   └── weapon_detection/
+│       ├── inference/detector_pipeline.py
+│       └── training/
+│           ├── split_dataset.py
+│           ├── augment_dataset.py
+│           ├── train_fasterrcnn_light.py
+│           ├── test_light_model.py
+│           └── pipeline.py
 ├── docker-compose.yml
-├── start_docker_weapons.sh / .bat
-├── requirements_weapon_detector.txt
-├── person_extraction/
-├── weapons_detector2/
-├── weapon_detection_pipeline/
-└── flask_analyzer/
+├── start_docker_weapons.sh / start_docker_weapons.bat
+└── archive/legacy/             # Código previo, sin soporte
 ```
 
----
+## Uso
 
-## 🐛 Problemas Comunes
+### Entrenamiento del detector
 
-- CUDA out of memory → bajar batch o usar CPU
-- Modelo no encontrado → entrenar y ubicar en `weapons_detector2/results_light/`
-- Webcam en Docker → usar modo local
+```bash
+cd src/weapon_detection/training
+python pipeline.py \
+    --dataset-images dataset/images \
+    --dataset-xmls dataset/xmls \
+    --output-dir results_light \
+    --epochs 50 --batch-size 8 --amp
+```
 
----
+El pipeline ejecuta `split_dataset.py` → `augment_dataset.py` → `train_fasterrcnn_light.py` → `test_light_model.py`. Usa `--skip-stages` para saltar pasos ya completados.
 
-## 📝 Licencia y Créditos
+### Pipeline de inferencia CLI
 
-Trabajo académico - Procesamiento de Imágenes - UNLu.
+```bash
+python src/weapon_detection/inference/detector_pipeline.py \
+    --input data/video.mp4 \
+    --output outputs/video_detected.mp4 \
+    --confidence 0.55 --frame-skip 2
+```
 
-Agradecimientos: YOLOv8 (Ultralytics), PyTorch, COCO, Google Colab.
+Por defecto busca `models/weapon_detection/best_model.pth` y `src/person_extraction/yolov8n.pt`. Puedes sobreescribir rutas con argumentos CLI o al instanciar `WeaponDetectionPipeline`.
 
-**Última actualización:** Noviembre 2025
+### Aplicaciones web
 
+```bash
+# Image Lab (puerto 5000)
+FLASK_APP=apps/image_lab/app.py flask run --reload --port 5000
 
-```### Salida
+# Weapon Monitor (puerto 5001)
+FLASK_APP=apps/weapon_monitor/app.py flask run --reload --port 5001
+```
+
+#### API REST (Weapon Monitor)
+
+```bash
+curl -X POST "http://localhost:5001/api/detect-file" \
+     -F "file=@imagen.jpg" \
+     -F "confidence=0.5"
+```
+
+Endpoints adicionales: `POST /api/webcam/start`, `POST /api/webcam/stop`, `GET /api/webcam/stream` y `GET /api/health`.
+
+## Modelos y datos
+
+- Coloca el modelo entrenado en `models/weapon_detection/best_model.pth` (se monta automáticamente en Docker).
+- El modelo YOLOv8 para personas (`yolov8n.pt`) vive en `src/person_extraction/`.
+- Los datasets siguen formato Pascal VOC (`dataset/images`, `dataset/xmls`).
+
+## Docker
+
+El script `start_docker_weapons.sh`/`.bat` verifica los modelos, descarga YOLOv8 si falta y expone un menú para construir/levantar los contenedores.
+
+```bash
+./start_docker_weapons.sh        # Linux / macOS
+start_docker_weapons.bat         # Windows
+```
+
+Manual:
+
+```bash
+docker compose build
+docker compose up -d
+docker compose logs -f
+docker compose down
+```
+
+Servicios expuestos:
+- `http://localhost:5000` → Image Lab
+- `http://localhost:5001` → Weapon Monitor + API REST
+
+## Problemas comunes
+
+- **CUDA OOM**: baja `--batch-size`, reduce resolución o ejecuta en CPU.
+- **Modelo no encontrado**: asegúrate de entrenar o copiar `best_model.pth` dentro de `models/weapon_detection/`.
+- **YOLO faltante**: ejecuta los scripts de inicio o descarga manualmente `yolov8n.pt` a `src/person_extraction/`.
+- **Webcam en Docker**: usa la ejecución local o comparte el dispositivo GPU/Video explícitamente.
+
+## Limpieza y legado
+
+Todo el código previo (`weapon_detection_pipeline/`, `weapons_detector2/`, etc.) permanece en `archive/legacy/` como referencia histórica. No se mantiene activo, pero sirve para comparación o recuperación de experimentos viejos.
+
+## Próximos pasos
+
+- Incorporar métricas adicionales en `apps/weapon_monitor`.
+- Publicar ejemplos de consumo de la API desde otros lenguajes.
+- Añadir tests automatizados para los módulos de datos y la CLI.
+
+## Licencia y Créditos
+
+Trabajo académico de la carrera de Procesamiento de Imágenes (UNLu).
+
+Agradecimientos a Ultralytics (YOLOv8), PyTorch, COCO y la comunidad open-source. Se aceptan issues y PRs.

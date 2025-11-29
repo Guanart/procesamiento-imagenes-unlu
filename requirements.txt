@@ -1,29 +1,13 @@
-# Flask Web Application
-Flask>=2.3.0
-Pillow>=10.0.0
-numpy>=1.24.0
-Werkzeug>=2.3.0
-matplotlib>=3.7.0
+# 📦 Requerimientos agrupados
+# ---------------------------
+# Este archivo actúa como wrapper para los nuevos archivos modulares en
+# `requirements/`. Usa los comandos de abajo según el caso:
+#
+# - `pip install -r requirements/base.txt` → pipeline/inferencia
+# - `pip install -r requirements/training.txt` → entrenamiento completo
+# - `pip install -r requirements/apps/image_lab.txt` → app Image Lab
+# - `pip install -r requirements/apps/weapon_monitor.txt` → app Weapon Monitor
+#
+# Mantenemos esta referencia por compatibilidad con scripts existentes.
 
-# Dependencias para detección de personas con YOLOv8
-ultralytics>=8.0.0
-opencv-python>=4.8.0
-torch>=2.0.0
-torchvision>=0.15.0
-
-# Dependencias para mejora de imágenes y análisis
-scipy>=1.11.0
-tqdm>=4.65.0
-
-# Dependencias adicionales para compatibilidad
-setuptools>=68.0.0
-wheel>=0.40.0
-
-# Dependencias para métricas y visualización de entrenamiento
-scikit-learn>=1.2.0
-pandas>=2.0.0
-
-# Dependencias para GPU AMD / ROCm (ver documentación de AMD)
-# (Nota: puede que instales versiones específicas de torch/torchvision para ROCm según tu hardware)
-
-torchmetrics
+-r requirements/base.txt

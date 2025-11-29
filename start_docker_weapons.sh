@@ -12,7 +12,11 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+if docker compose version &> /dev/null; then
+    DOCKER_COMPOSE=(docker compose)
+elif command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE=(docker-compose)
+else
     echo "❌ Error: Docker Compose no está instalado"
     exit 1
 fi
@@ -21,12 +25,13 @@ echo "✅ Docker detectado"
 echo ""
 
 # Verificar que existe el modelo entrenado
-if [ ! -f "weapons_detector2/results_light/best_model.pth" ]; then
+MODEL_PATH="models/weapon_detection/best_model.pth"
+if [ ! -f "$MODEL_PATH" ]; then
     echo "❌ Error: Modelo de armas no encontrado"
-    echo "   Ubicación esperada: weapons_detector2/results_light/best_model.pth"
+    echo "   Ubicación esperada: $MODEL_PATH"
     echo ""
     echo "   Por favor, entrena el modelo primero:"
-    echo "   python weapons_detector2/train_fasterrcnn_light.py --amp"
+    echo "   cd src/weapon_detection/training && python pipeline.py --skip-stages split augment"
     exit 1
 fi
 
@@ -34,24 +39,26 @@ echo "✅ Modelo de armas encontrado"
 echo ""
 
 # Verificar/descargar modelo YOLO
-if [ ! -f "person_extraction/yolov8n.pt" ]; then
+YOLO_PATH="src/person_extraction/yolov8n.pt"
+if [ ! -f "$YOLO_PATH" ]; then
     echo "📥 Descargando modelo YOLOv8..."
-    mkdir -p person_extraction
-    cd person_extraction
+    mkdir -p src/person_extraction
+    pushd src/person_extraction > /dev/null
     python3 -c "from ultralytics import YOLO; YOLO('yolov8n.pt')" 2>/dev/null || \
         wget https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt
-    cd ..
+    popd > /dev/null
 fi
 
 echo "✅ Modelo YOLO encontrado"
 echo ""
 
 # Crear directorios necesarios
-mkdir -p flask_analyzer/uploads/weapons
-mkdir -p flask_analyzer/results/weapons
+mkdir -p apps/image_lab/uploads
+mkdir -p apps/weapon_monitor/uploads/weapons
+mkdir -p apps/weapon_monitor/results/weapons
 
 echo "🔨 Construyendo imagen Docker..."
-docker compose build
+"${DOCKER_COMPOSE[@]}" build
 
 if [ $? -ne 0 ]; then
     echo "❌ Error al construir la imagen"
@@ -78,47 +85,49 @@ case $option in
     1)
         echo ""
         echo "🚀 Iniciando contenedor en segundo plano..."
-        docker-compose up -d
+        "${DOCKER_COMPOSE[@]}" up -d
         
         if [ $? -eq 0 ]; then
             echo ""
             echo "✅ Contenedor iniciado"
             echo ""
-            echo "📱 Accede a: http://localhost:5001"
+            echo "📱 Accede a:"
+            echo "   - http://localhost:5000 (Image Lab)"
+            echo "   - http://localhost:5001 (Weapon Monitor)"
             echo ""
-            echo "Para ver logs: docker-compose logs -f"
-            echo "Para detener: docker-compose down"
+            echo "Para ver logs: ${DOCKER_COMPOSE[*]} logs -f"
+            echo "Para detener: ${DOCKER_COMPOSE[*]} down"
         fi
         ;;
     2)
         echo ""
         echo "🚀 Iniciando contenedor (presiona Ctrl+C para detener)..."
-        docker-compose up
+        "${DOCKER_COMPOSE[@]}" up
         ;;
     3)
         echo ""
         echo "⏹ Deteniendo contenedor..."
-        docker-compose down
+        "${DOCKER_COMPOSE[@]}" down
         echo "✅ Contenedor detenido"
         ;;
     4)
         echo ""
         echo "📋 Logs del contenedor (presiona Ctrl+C para salir):"
         echo ""
-        docker-compose logs -f
+        "${DOCKER_COMPOSE[@]}" logs -f
         ;;
     5)
         echo ""
         echo "🔄 Reiniciando contenedor..."
-        docker-compose restart
+        "${DOCKER_COMPOSE[@]}" restart
         echo "✅ Contenedor reiniciado"
         ;;
     6)
         echo ""
         read -p "⚠️  ¿Estás seguro? Esto eliminará el contenedor y la imagen [s/N]: " confirm
         if [ "$confirm" = "s" ] || [ "$confirm" = "S" ]; then
-            docker-compose down
-            docker rmi flask_analyzer-weapon-detector 2>/dev/null
+            "${DOCKER_COMPOSE[@]}" down
+            docker rmi weapon-monitor image-lab 2>/dev/null
             echo "✅ Limpieza completada"
         else
             echo "Operación cancelada"

@@ -1,0 +1,26 @@
+{
+  "weapons": {},
+  "persons": {
+    "count": 270,
+    "avg_size": [
+      147,
+      66
+    ],
+    "min_size": [
+      55,
+      36
+    ],
+    "max_size": [
+      253,
+      117
+    ],
+    "enhanced": true
+  },
+  "balance": {
+    "balanced": false,
+    "classes": {},
+    "total": 0,
+    "difference": 0
+  },
+  "timestamp": "2025-10-20T20:57:00.925610"
+}

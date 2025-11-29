@@ -36,10 +36,12 @@ dataset/xmls/*
 !dataset/test/
 
 # Uploads y resultados temporales
-flask_analyzer/uploads/*
-flask_analyzer/results/*
-!flask_analyzer/uploads/.gitkeep
-!flask_analyzer/results/.gitkeep
+apps/image_lab/uploads/*
+apps/weapon_monitor/uploads/*
+apps/weapon_monitor/results/*
+!apps/image_lab/uploads/.gitkeep
+!apps/weapon_monitor/uploads/.gitkeep
+!apps/weapon_monitor/results/.gitkeep
 
 # Logs
 *.log
@@ -52,8 +54,8 @@ Thumbs.db
 # Otros scripts no necesarios en producción
 *.sh
 *.bat
-!flask_analyzer/start_docker_weapons.sh
-!flask_analyzer/start_docker_weapons.bat
+!start_docker_weapons.sh
+!start_docker_weapons.bat
 
 # Archivos temporales
 *.tmp

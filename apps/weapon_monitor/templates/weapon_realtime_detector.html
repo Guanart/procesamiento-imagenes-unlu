@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detección en Tiempo Real - Weapon Detector</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2em;
+        }
+
+        .back-btn {
+            background: white;
+            color: #667eea;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        .back-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .main-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        #webcamStream {
+            width: 100%;
+            display: block;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 20px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+            color: white;
+            display: none;
+        }
+
+        .video-overlay.active {
+            display: block;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #f00;
+            margin-right: 10px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .control-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-start {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-start:hover {
+            background: #45a049;
+        }
+
+        .btn-stop {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-stop:hover {
+            background: #da190b;
+        }
+
+        .btn-capture {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-capture:hover {
+            background: #5568d3;
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            color: #667eea;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            color: #764ba2;
+            font-weight: bold;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .alert.error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+        }
+
+        .alert.success {
+            background: #efe;
+            border: 1px solid #cfc;
+            color: #3c3;
+        }
+
+        .placeholder {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 1.5em;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📹 Detección en Tiempo Real</h1>
+            <a href="/" class="back-btn">← Volver</a>
+        </div>
+
+        <div class="main-card">
+            <div class="video-container">
+                <div class="placeholder" id="placeholder">
+                    📹 Haz clic en "Iniciar Webcam" para comenzar
+                </div>
+                <img id="webcamStream" style="display:none;" alt="Webcam Stream">
+                <div class="video-overlay" id="videoOverlay">
+                    <span class="status-indicator"></span>
+                    <strong>EN VIVO</strong>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <label for="confidenceRT">Umbral de Confianza (0.0 - 1.0)</label>
+                    <input type="number" id="confidenceRT" min="0" max="1" step="0.05" value="0.5">
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-start" id="startBtn">▶ Iniciar Webcam</button>
+                <button class="btn btn-stop" id="stopBtn" disabled>⏹ Detener</button>
+                <button class="btn btn-capture" id="captureBtn" disabled>📸 Capturar</button>
+            </div>
+
+            <div class="alert error" id="errorAlert"></div>
+            <div class="alert success" id="successAlert"></div>
+
+            <div class="stats">
+                <div class="stat-card">
+                    <h3>Estado</h3>
+                    <div class="stat-value" id="statusText">Inactivo</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Detecciones Totales</h3>
+                    <div class="stat-value" id="totalDetections">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Última Captura</h3>
+                    <div class="stat-value" id="lastCapture" style="font-size: 1em;">-</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const webcamStream = document.getElementById('webcamStream');
+        const placeholder = document.getElementById('placeholder');
+        const videoOverlay = document.getElementById('videoOverlay');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const captureBtn = document.getElementById('captureBtn');
+        const errorAlert = document.getElementById('errorAlert');
+        const successAlert = document.getElementById('successAlert');
+        const statusText = document.getElementById('statusText');
+        const totalDetections = document.getElementById('totalDetections');
+        const lastCapture = document.getElementById('lastCapture');
+
+        let isStreaming = false;
+        let detectionCounter = 0;
+
+        startBtn.addEventListener('click', startWebcam);
+        stopBtn.addEventListener('click', stopWebcam);
+        captureBtn.addEventListener('click', captureFrame);
+
+        async function startWebcam() {
+            hideAlerts();
+
+            const confidence = document.getElementById('confidenceRT').value;
+
+            try {
+                const response = await fetch('/api/webcam/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confidence: parseFloat(confidence) })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    isStreaming = true;
+                    webcamStream.src = '/api/webcam/stream?' + new Date().getTime();
+                    webcamStream.style.display = 'block';
+                    placeholder.style.display = 'none';
+                    videoOverlay.classList.add('active');
+                    
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    captureBtn.disabled = false;
+                    
+                    statusText.textContent = 'Activo';
+                    statusText.style.color = '#4CAF50';
+                    
+                    showSuccess('Webcam iniciada correctamente');
+                } else {
+                    showError('No se pudo iniciar la webcam');
+                }
+            } catch (error) {
+                showError('Error de conexión: ' + error.message);
+            }
+        }
+
+        async function stopWebcam() {
+            try {
+                const response = await fetch('/api/webcam/stop', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    isStreaming = false;
+                    webcamStream.style.display = 'none';
+                    placeholder.style.display = 'flex';
+                    videoOverlay.classList.remove('active');
+                    
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                    captureBtn.disabled = true;
+                    
+                    statusText.textContent = 'Inactivo';
+                    statusText.style.color = '#999';
+                    
+                    showSuccess('Webcam detenida');
+                }
+            } catch (error) {
+                showError('Error al detener: ' + error.message);
+            }
+        }
+
+        async function captureFrame() {
+            hideAlerts();
+
+            try {
+                const response = await fetch('/api/webcam/capture', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    detectionCounter += data.detections;
+                    totalDetections.textContent = detectionCounter;
+                    
+                    const now = new Date();
+                    lastCapture.textContent = now.toLocaleTimeString();
+                    
+                    showSuccess(`Captura guardada: ${data.detections} armas detectadas`);
+                } else {
+                    showError(data.error || 'Error al capturar');
+                }
+            } catch (error) {
+                showError('Error de conexión: ' + error.message);
+            }
+        }
+
+        function showSuccess(message) {
+            successAlert.textContent = '✓ ' + message;
+            successAlert.style.display = 'block';
+            setTimeout(() => {
+                successAlert.style.display = 'none';
+            }, 5000);
+        }
+
+        function showError(message) {
+            errorAlert.textContent = '✗ Error: ' + message;
+            errorAlert.style.display = 'block';
+        }
+
+        function hideAlerts() {
+            errorAlert.style.display = 'none';
+            successAlert.style.display = 'none';
+        }
+
+        // Detener webcam al salir de la página
+        window.addEventListener('beforeunload', () => {
+            if (isStreaming) {
+                fetch('/api/webcam/stop', { method: 'POST' });
+            }
+        });
+    </script>
+</body>
+</html>

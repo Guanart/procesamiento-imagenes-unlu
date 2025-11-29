@@ -1,30 +1,9 @@
-############################################################
-# Requisitos del Sistema de Detección de Armas (Producción)
-# Python >= 3.8
-# Objetivo: Solo dependencias necesarias para INFERENCIA y Web.
-############################################################
-
-# Deep Learning / Inferencia
-torch>=2.0.0
-torchvision>=0.15.0
-
-# Detección Personas (YOLOv8)
 ultralytics>=8.0.0
-
-# Computer Vision / Imagen
-opencv-python>=4.8.0
-Pillow>=10.0.0
-numpy>=1.24.0
-
-# Web
-Flask>=2.3.0
-
-############################################################
-# Extras para ENTRENAMIENTO (descomentar si se entrena el modelo)
-# torchmetrics>=1.0.0       # mAP y métricas avanzadas
-# tqdm>=4.65.0              # Barras de progreso
-# psutil>=5.9.0             # Monitoreo de recursos
-# scikit-learn>=1.2.0       # Métricas adicionales / split
-# matplotlib>=3.7.0         # Gráficos de entrenamiento
-# scipy>=1.10.0             # Dependencias científicas
-############################################################
+# Este archivo se conserva por compatibilidad con los scripts antiguos.
+# Los requerimientos reales ahora viven en la carpeta `requirements/`:
+#   - requirements/base.txt        → inferencia/pipeline
+#   - requirements/training.txt    → entrenamiento completo
+#   - requirements/apps/*.txt      → aplicaciones Flask
+#
+# Para reproducir el entorno anterior basta con ejecutar:
+-r requirements/base.txt
