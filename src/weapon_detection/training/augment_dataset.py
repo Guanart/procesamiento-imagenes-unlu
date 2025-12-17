@@ -11,8 +11,6 @@ Transformaciones aplicadas:
 - Ajustes de saturación (0.7 - 1.3)
 - Blur gaussiano ocasional (10%)
 - Ruido gaussiano ocasional (10%)
-
-Autor: Procesamiento de Imágenes - UNLU
 """
 
 import cv2
@@ -156,33 +154,95 @@ class DataAugmentor:
         return rotated, new_boxes
     
     def adjust_brightness(self, image: np.ndarray, factor: float) -> np.ndarray:
-        """Ajusta el brillo de la imagen."""
+        """Ajusta el brillo de la imagen.
+        
+        Convierte a espacio HSV (Hue-Saturation-Value) para modificar solo el canal V (brillo)
+        sin afectar los colores. Esto simula diferentes condiciones de iluminación.
+        
+        Args:
+            image: Imagen BGR
+            factor: Multiplicador de brillo (0.7-1.3). <1 oscurece, >1 aclara
+        """
+        # Convertir el espacio de color BGR a HSV, para acceder al canal de brillo (V)
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV).astype(np.float32)
+        # Multiplicar solo el canal V (índice 2) por el factor
         hsv[:, :, 2] = hsv[:, :, 2] * factor
+        # Asegurar que los valores estén en rango válido [0, 255]
         hsv[:, :, 2] = np.clip(hsv[:, :, 2], 0, 255)
+        # Volver a BGR para compatibilidad con OpenCV
         return cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
     
     def adjust_contrast(self, image: np.ndarray, factor: float) -> np.ndarray:
-        """Ajusta el contraste de la imagen."""
+        """Ajusta el contraste de la imagen.
+        
+        Aplica una transformación lineal alrededor de la media de la imagen.
+        Aumentar contraste enfatiza diferencias entre píxeles claros y oscuros,
+        lo que ayuda al modelo a detectar bordes y formas de armas en condiciones variables.
+        
+        Args:
+            image: Imagen BGR
+            factor: Multiplicador de contraste (0.8-1.2). <1 reduce contraste, >1 lo aumenta
+        """
+        # Calcular valor medio de todos los píxeles
         mean = np.mean(image)
+        # Fórmula: I_out = (I_in - mean) * factor + mean
+        # Expande/contrae los valores alrededor de la media
         adjusted = (image - mean) * factor + mean
+        # Asegurar rango válido [0, 255]
         return np.clip(adjusted, 0, 255).astype(np.uint8)
     
     def adjust_saturation(self, image: np.ndarray, factor: float) -> np.ndarray:
-        """Ajusta la saturación de la imagen."""
+        """Ajusta la saturación de la imagen.
+        
+        Modifica la intensidad de color en el espacio HSV (canal S - Saturation).
+        Variar saturación simula diferentes condiciones de captura (cámaras, sensores)
+        y ayuda al modelo a generalizar entre imágenes vívidas y desaturadas.
+        
+        Args:
+            image: Imagen BGR
+            factor: Multiplicador de saturación (0.7-1.3). <1 desatura, >1 intensifica colores
+        """
+        # Convertir BGR -> HSV para acceder al canal de saturación (S)
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV).astype(np.float32)
+        # Multiplicar solo el canal S (índice 1) por el factor
         hsv[:, :, 1] = hsv[:, :, 1] * factor
+        # Asegurar que los valores estén en rango válido [0, 255]
         hsv[:, :, 1] = np.clip(hsv[:, :, 1], 0, 255)
+        # Volver a BGR
         return cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
     
     def apply_blur(self, image: np.ndarray) -> np.ndarray:
-        """Aplica blur gaussiano."""
+        """Aplica blur gaussiano.
+        
+        Simula desenfoque por movimiento, distancia focal incorrecta o cámaras de baja calidad.
+        Esto fuerza al modelo a aprender características robustas que no dependen de bordes nítidos.
+        
+        Args:
+            image: Imagen BGR
+        
+        Returns:
+            Imagen con desenfoque gaussiano (kernel 3x3 o 5x5 aleatorio)
+        """
+        # Elegir tamaño de kernel aleatoriamente (3x3 es suave, 5x5 es más fuerte)
         kernel_size = random.choice([3, 5])
+        # Aplicar filtro gaussiano con sigma=0 (calculado automáticamente)
         return cv2.GaussianBlur(image, (kernel_size, kernel_size), 0)
     
     def apply_noise(self, image: np.ndarray) -> np.ndarray:
-        """Aplica ruido gaussiano."""
+        """Aplica ruido gaussiano.
+        
+        Simula artefactos de sensores (ISO alto, poca luz, compresión JPEG).
+        El ruido obliga al modelo a distinguir señales importantes (armas) del ruido de fondo.
+        
+        Args:
+            image: Imagen BGR
+        
+        Returns:
+            Imagen con ruido gaussiano aditivo (media=0, desviación estándar=10)
+        """
+        # Generar ruido gaussiano con distribución N(0, 10)
         noise = np.random.normal(0, 10, image.shape).astype(np.uint8)
+        # Sumar ruido a la imagen (aditivo)
         noisy = cv2.add(image, noise)
         return noisy
     

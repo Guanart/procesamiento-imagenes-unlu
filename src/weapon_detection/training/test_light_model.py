@@ -4,9 +4,6 @@ Test Model - Evalúa el modelo entrenado en el conjunto de test
 
 Calcula métricas de precisión (mAP) en el conjunto de test separado
 y guarda imágenes con detecciones visualizadas.
-
-Autor: Procesamiento de Imágenes - UNLU
-Fecha: Noviembre 2025
 """
 
 import torch
@@ -20,6 +17,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 from tqdm import tqdm
 from torchmetrics.detection import MeanAveragePrecision
+import numpy as np
 
 # --- CONFIGURACIÓN POR DEFECTO ---
 DEFAULT_MODEL_PATH = "results_light/checkpoint_epoch_final.pth"
@@ -92,6 +90,77 @@ def find_image_for_xml(xml_path, images_dir):
     return None
 
 
+def _iou(box_a, box_b):
+    """Calcula el Intersection over Union (IoU) entre dos cajas."""
+    xa1, ya1, xa2, ya2 = box_a
+    xb1, yb1, xb2, yb2 = box_b
+
+    inter_x1 = max(xa1, xb1)
+    inter_y1 = max(ya1, yb1)
+    inter_x2 = min(xa2, xb2)
+    inter_y2 = min(ya2, yb2)
+
+    inter_w = max(0.0, inter_x2 - inter_x1)
+    inter_h = max(0.0, inter_y2 - inter_y1)
+    inter_area = inter_w * inter_h
+
+    area_a = max(0.0, xa2 - xa1) * max(0.0, ya2 - ya1)
+    area_b = max(0.0, xb2 - xb1) * max(0.0, yb2 - yb1)
+
+    union = area_a + area_b - inter_area
+    if union <= 0:
+        return 0.0
+    return inter_area / union
+
+
+def build_confusion_matrix(predictions, targets, num_classes, score_threshold=0.5, iou_threshold=0.5):
+    """Construye una matriz de confusión extendida (incluye background)."""
+    size = num_classes + 1  # fondo en índice 0
+    matrix = np.zeros((size, size), dtype=int)
+
+    for pred, target in zip(predictions, targets):
+        gt_boxes = target["boxes"].cpu().numpy()
+        gt_labels = target["labels"].cpu().numpy()
+        gt_matched = np.zeros(len(gt_labels), dtype=bool)
+
+        scores = pred["scores"].cpu().numpy()
+        boxes = pred["boxes"].cpu().numpy()
+        labels = pred["labels"].cpu().numpy()
+
+        keep = scores >= score_threshold
+        scores = scores[keep]
+        boxes = boxes[keep]
+        labels = labels[keep]
+
+        order = np.argsort(-scores)
+
+        for idx in order:
+            box = boxes[idx]
+            label = int(labels[idx])
+            best_iou = 0.0
+            best_gt = -1
+            for j, gt_box in enumerate(gt_boxes):
+                if gt_matched[j]:
+                    continue
+                iou = _iou(box, gt_box)
+                if iou > best_iou:
+                    best_iou = iou
+                    best_gt = j
+            if best_iou >= iou_threshold and best_gt >= 0:
+                gt_matched[best_gt] = True
+                gt_label = int(gt_labels[best_gt])
+                matrix[gt_label][label] += 1
+            else:
+                matrix[0][label] += 1  # falso positivo (sin GT asociado)
+
+        # Falsos negativos (GT sin predicción)
+        for matched, gt_label in zip(gt_matched, gt_labels):
+            if not matched:
+                matrix[int(gt_label)][0] += 1
+
+    return matrix
+
+
 def test_model(model_path, test_images_dir, test_xml_dir, output_dir, confidence_threshold, save_images=True):
     """Evalúa el modelo en el conjunto de test y calcula métricas."""
     print(f"🔧 Usando dispositivo: {DEVICE}")
@@ -142,6 +211,8 @@ def test_model(model_path, test_images_dir, test_xml_dir, output_dir, confidence
     total_detections = 0
     total_ground_truth = 0
     failed_images = 0
+    stored_predictions: List[dict] = []
+    stored_targets: List[dict] = []
 
     # Procesar cada imagen
     for xml_path in tqdm(xml_files, desc="Evaluando", unit="img"):
@@ -182,6 +253,16 @@ def test_model(model_path, test_images_dir, test_xml_dir, output_dir, confidence
             
             # Actualizar métricas
             metric.update([pred], [target])
+
+            stored_predictions.append({
+                "boxes": pred["boxes"].detach().cpu(),
+                "labels": pred["labels"].detach().cpu(),
+                "scores": pred["scores"].detach().cpu(),
+            })
+            stored_targets.append({
+                "boxes": target["boxes"].detach().cpu(),
+                "labels": target["labels"].detach().cpu(),
+            })
             
             # Guardar imagen con detecciones si se requiere
             if save_images:
@@ -236,7 +317,18 @@ def test_model(model_path, test_images_dir, test_xml_dir, output_dir, confidence
     
     if save_images:
         print(f"\n💾 Imágenes con detecciones guardadas en: {output_dir}")
-    
+
+    confusion = build_confusion_matrix(
+        stored_predictions,
+        stored_targets,
+        num_classes=len(CLASSES) - 1,
+        score_threshold=confidence_threshold,
+        iou_threshold=0.5,
+    )
+
+    print("\n🧮 Matriz de confusión (filas=GT, columnas=Pred, 0=fondo):")
+    print(confusion)
+
     print("=" * 70)
     
     # Guardar métricas en JSON
@@ -255,6 +347,11 @@ def test_model(model_path, test_images_dir, test_xml_dir, output_dir, confidence
             "map_small": float(stats["map_small"]),
             "map_medium": float(stats["map_medium"]),
             "map_large": float(stats["map_large"])
+        },
+        "confusion_matrix": {
+            "labels": CLASSES,
+            "matrix": confusion.tolist(),
+            "description": "Filas = etiqueta real, Columnas = predicción, índice 0 corresponde a background"
         }
     }
     

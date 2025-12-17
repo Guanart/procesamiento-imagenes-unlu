@@ -7,9 +7,6 @@ Aplica mejoras de calidad a imágenes para facilitar la detección de armas.
 Técnicas aplicadas:
 - Ajuste de contraste adaptativo (CLAHE)
 - Mejora de brillo (ajuste canal V en HSV)
-
-Autor: Proyecto de Procesamiento de Imágenes - Universidad Nacional de Luján
-Fecha: Noviembre 2025
 """
 
 import cv2

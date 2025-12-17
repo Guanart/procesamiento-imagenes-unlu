@@ -1,4 +1,4 @@
-# 📊 Informe de Preprocesamiento del Dataset
+# 📊 Informe de Preprocesamiento del Dataset (DEPRECADO)
 
 **Proyecto**: Detección de Armas en Video  
 **Universidad**: Universidad Nacional de Luján  

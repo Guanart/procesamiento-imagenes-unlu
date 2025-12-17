@@ -1,4 +1,4 @@
-# 📊 Informe de Dataset - Procesamiento de Imágenes
+# 📊 Informe de Dataset - Procesamiento de Imágenes (DEPRECADO)
 
 **Fecha de generación**: 2025-10-20 20:58:42
 

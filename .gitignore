@@ -3,6 +3,8 @@
 input
 output
 #teoria
+*.pth
+*.zip
 custom_env
 .venv
 image-transform-app/

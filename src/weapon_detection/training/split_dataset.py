@@ -4,9 +4,6 @@ Dataset Splitter - Separa dataset en training y testing
 
 Este script separa un porcentaje del dataset original para testing,
 moviendo las imágenes y XMLs a un directorio separado.
-
-Autor: Procesamiento de Imágenes - UNLU
-Fecha: Noviembre 2025
 """
 
 import argparse

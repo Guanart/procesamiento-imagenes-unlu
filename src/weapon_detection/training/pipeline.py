@@ -4,13 +4,10 @@ Pipeline Completo de Entrenamiento
 Automatiza el flujo completo: Split → Augment → Train → Test
 
 Ejecuta todos los scripts necesarios en secuencia:
-1. split_dataset.py: Separa 10% para testing
+1. split_dataset.py: Separa un % para testing
 2. augment_dataset.py: Aumenta el conjunto de training
 3. train_fasterrcnn_light.py: Entrena con checkpoints
 4. test_light_model.py: Evalúa métricas finales en test set
-
-Autor: Procesamiento de Imágenes - UNLU
-Fecha: Noviembre 2025
 """
 
 import argparse
