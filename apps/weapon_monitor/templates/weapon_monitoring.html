@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centro de Monitoreo - Detección de Armas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { background-color: #1a1a1a; color: #e0e0e0; }
+        .camera-feed { 
+            width: 100%; 
+            height: 300px; 
+            background: #000; 
+            border: 2px solid #333;
+            object-fit: contain;
+        }
+        .alarm-card {
+            background-color: #2d2d2d;
+            border-left: 5px solid #ff4444;
+            margin-bottom: 10px;
+            padding: 10px;
+            cursor: pointer;
+        }
+        .alarm-card:hover { background-color: #3d3d3d; }
+        .sidebar {
+            height: 100vh;
+            overflow-y: auto;
+            background-color: #222;
+            border-left: 1px solid #444;
+        }
+        .status-indicator {
+            width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+        }
+        .status-ok { background-color: #00cc00; }
+        .status-alert { background-color: #ff0000; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Main Content: Camera Grid -->
+            <div class="col-md-9 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2><i class="fas fa-shield-alt text-warning"></i> Centro de Monitoreo</h2>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#configModal">
+                        <i class="fas fa-cog"></i> Configurar Cámaras
+                    </button>
+                </div>
+
+                <div class="row" id="cameraGrid">
+                    <!-- Cameras will be injected here -->
+                    <div class="col-12 text-center mt-5">
+                        <div class="spinner-border text-light" role="status"></div>
+                        <p>Cargando cámaras...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar: Alarms -->
+            <div class="col-md-3 sidebar p-3">
+                <h4 class="mb-3 text-danger"><i class="fas fa-bell"></i> Últimas Alarmas</h4>
+                <div id="alarmList">
+                    <!-- Alarms will be injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Config Modal -->
+    <div class="modal fade" id="configModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Configuración de Cámaras</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addCameraForm" class="mb-4 border-bottom border-secondary pb-3">
+                        <h6>Agregar Nueva Cámara</h6>
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <input type="text" class="form-control bg-secondary text-light border-0" placeholder="Nombre" id="camName" required>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" class="form-control bg-secondary text-light border-0" placeholder="Fuente (0, 1, URL)" id="camSource" required>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="number" step="0.05" class="form-control bg-secondary text-light border-0" placeholder="Conf (0.85)" id="camConf" value="0.85">
+                            </div>
+                            <div class="col-md-2">
+                                <input type="number" class="form-control bg-secondary text-light border-0" placeholder="Frames (5)" id="camFrames" value="5">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-success w-100">Agregar</button>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    <h6>Cámaras Existentes</h6>
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nombre</th>
+                                <th>Fuente</th>
+                                <th>Confianza</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cameraTableBody">
+                            <!-- Table rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alarm Detail Modal -->
+    <div class="modal fade" id="alarmModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-danger">Detalle de Alarma</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h6>Imagen Completa</h6>
+                            <img id="alarmFullImg" src="" class="img-fluid border border-danger">
+                        </div>
+                        <div class="col-md-4">
+                            <h6>Recorte</h6>
+                            <img id="alarmCropImg" src="" class="img-fluid border border-warning mb-3">
+                            <div class="text-start p-3 bg-secondary rounded">
+                                <p><strong>Cámara:</strong> <span id="alarmCamName"></span></p>
+                                <p><strong>Arma:</strong> <span id="alarmWeapon"></span></p>
+                                <p><strong>Confianza:</strong> <span id="alarmConf"></span></p>
+                                <p><strong>Hora:</strong> <span id="alarmTime"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio for Alarm -->
+    <audio id="alarmSound" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" preload="auto"></audio>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let lastAlarmTimestamp = null;
+        const alarmSound = document.getElementById('alarmSound');
+
+        // --- Cameras ---
+        async function loadCameras() {
+            const response = await fetch('/api/cameras');
+            const cameras = await response.json();
+            
+            const grid = document.getElementById('cameraGrid');
+            const table = document.getElementById('cameraTableBody');
+            
+            grid.innerHTML = '';
+            table.innerHTML = '';
+            
+            cameras.forEach(cam => {
+                // Grid Item
+                if (cam.enabled) {
+                    grid.innerHTML += `
+                        <div class="col-md-6 mb-4">
+                            <div class="card bg-dark border-secondary">
+                                <div class="card-header d-flex justify-content-between">
+                                    <span><i class="fas fa-video"></i> ${cam.name}</span>
+                                    <span class="badge bg-success">EN VIVO</span>
+                                </div>
+                                <div class="card-body p-0">
+                                    <img src="/video_feed/${cam.id}" class="camera-feed" onerror="this.src='https://via.placeholder.com/640x360?text=Sin+Señal'">
+                                </div>
+                                <div class="card-footer text-muted small">
+                                    Fuente: ${cam.source} | Umbral: ${cam.confidence_threshold}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Table Row
+                table.innerHTML += `
+                    <tr>
+                        <td>${cam.id}</td>
+                        <td>${cam.name}</td>
+                        <td>${cam.source}</td>
+                        <td>${cam.confidence_threshold}</td>
+                        <td class="d-flex gap-2">
+                            <span class="badge ${cam.running ? 'bg-success' : 'bg-secondary'}">${cam.running ? 'RUNNING' : 'STOPPED'}</span>
+                            <button class="btn btn-sm btn-primary" onclick="startCamera(${cam.id})"><i class="fas fa-play"></i></button>
+                            <button class="btn btn-sm btn-warning" onclick="stopCamera(${cam.id})"><i class="fas fa-stop"></i></button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteCamera(${cam.id})"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            if (grid.innerHTML === '') {
+                grid.innerHTML = '<div class="col-12 text-center text-muted"><h3>No hay cámaras activas</h3><p>Agrega una cámara en configuración.</p></div>';
+            }
+        }
+
+        async function addCamera(e) {
+            e.preventDefault();
+            const data = {
+                name: document.getElementById('camName').value,
+                source: document.getElementById('camSource').value,
+                confidence: document.getElementById('camConf').value,
+                consecutive_frames: document.getElementById('camFrames').value
+            };
+            
+            await fetch('/api/cameras', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            
+            document.getElementById('addCameraForm').reset();
+            loadCameras();
+        }
+
+        async function deleteCamera(id) {
+            if(confirm('¿Eliminar cámara?')) {
+                await fetch(`/api/cameras/${id}`, { method: 'DELETE' });
+                loadCameras();
+            }
+        }
+
+        async function startCamera(id) {
+            await fetch(`/api/cameras/${id}/start`, { method: 'POST' });
+            loadCameras();
+        }
+
+        async function stopCamera(id) {
+            await fetch(`/api/cameras/${id}/stop`, { method: 'POST' });
+            loadCameras();
+        }
+
+        // --- Alarms ---
+        async function checkAlarms() {
+            // Check for new alarms
+            const response = await fetch('/api/alarms/latest');
+            const data = await response.json();
+            
+            if (data.timestamp && data.timestamp !== lastAlarmTimestamp) {
+                if (lastAlarmTimestamp !== null) {
+                    // New alarm detected!
+                    alarmSound.play().catch(e => console.log("Audio play failed", e));
+                    showToast("¡ALERTA DE ARMA DETECTADA!");
+                }
+                lastAlarmTimestamp = data.timestamp;
+                loadAlarmList();
+            }
+        }
+
+        async function loadAlarmList() {
+            const response = await fetch('/api/alarms');
+            const alarms = await response.json();
+            
+            const list = document.getElementById('alarmList');
+            list.innerHTML = '';
+            
+            alarms.forEach(alarm => {
+                const date = new Date(alarm.timestamp + "Z"); // Assume UTC or local
+                const timeStr = date.toLocaleTimeString();
+                
+                list.innerHTML += `
+                    <div class="alarm-card rounded" onclick='showAlarmDetail(${JSON.stringify(alarm)})'>
+                        <div class="d-flex justify-content-between">
+                            <strong>${alarm.weapon_type.toUpperCase()}</strong>
+                            <small>${timeStr}</small>
+                        </div>
+                        <div class="small text-muted">Cámara: ${alarm.camera_name || 'Unknown'}</div>
+                        <div class="small text-warning">Confianza: ${(alarm.confidence * 100).toFixed(1)}%</div>
+                    </div>
+                `;
+            });
+        }
+
+        function showAlarmDetail(alarm) {
+            document.getElementById('alarmFullImg').src = `/static/alarms/${alarm.image_path}`;
+            document.getElementById('alarmCropImg').src = `/static/alarms/${alarm.crop_path}`;
+            document.getElementById('alarmCamName').innerText = alarm.camera_name;
+            document.getElementById('alarmWeapon').innerText = alarm.weapon_type;
+            document.getElementById('alarmConf').innerText = (alarm.confidence * 100).toFixed(1) + '%';
+            document.getElementById('alarmTime').innerText = new Date(alarm.timestamp).toLocaleString();
+            
+            new bootstrap.Modal(document.getElementById('alarmModal')).show();
+        }
+
+        function showToast(msg) {
+            // Simple alert for now, could be a bootstrap toast
+            // alert(msg); 
+            // Better: create a toast element dynamically
+            const toastContainer = document.createElement('div');
+            toastContainer.style.position = 'fixed';
+            toastContainer.style.top = '20px';
+            toastContainer.style.right = '20px';
+            toastContainer.style.zIndex = '9999';
+            toastContainer.innerHTML = `
+                <div class="toast show bg-danger text-white" role="alert">
+                    <div class="toast-header bg-danger text-white">
+                        <strong class="me-auto">SISTEMA DE ALERTA</strong>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${msg}
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(toastContainer);
+            setTimeout(() => toastContainer.remove(), 5000);
+        }
+
+        // Init
+        document.getElementById('addCameraForm').addEventListener('submit', addCamera);
+        loadCameras();
+        loadAlarmList();
+        
+        // Polling
+        setInterval(checkAlarms, 2000); // Check every 2 seconds
+    </script>
+</body>
+</html>

@@ -14,6 +14,7 @@ import cv2
 from datetime import datetime
 import numpy as np
 import threading
+import time
 
 # Añadir src al path para imports locales
 APP_DIR = Path(__file__).resolve().parent
@@ -21,8 +22,29 @@ REPO_ROOT = APP_DIR.parents[1]
 SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.append(str(SRC_DIR))
+# Añadir APP_DIR para módulos locales
+if str(APP_DIR) not in sys.path:
+    sys.path.append(str(APP_DIR))
 
 from weapon_detection.inference.detector_pipeline import WeaponDetectionPipeline
+import database
+from camera_manager import CameraManager
+
+# Cargar variables desde .env si existe
+def load_env(env_path: Path):
+    if env_path.exists():
+        try:
+            for line in env_path.read_text(encoding='utf-8').splitlines():
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if '=' in line:
+                    key, val = line.split('=', 1)
+                    key = key.strip()
+                    val = val.strip().strip('"').strip("'")
+                    os.environ.setdefault(key, val)
+        except Exception as e:
+            print(f"⚠️  No se pudieron cargar variables de {env_path}: {e}")
 
 UPLOAD_DIR = APP_DIR / 'uploads' / 'weapons'
 RESULTS_DIR = APP_DIR / 'results' / 'weapons'
@@ -44,6 +66,9 @@ Ruta del modelo:
     2) Si existe el directorio ./models/weapon_detection, usa su best_model.pth
     3) Fallback al path del repo: models/weapon_detection/best_model.pth
 """
+# Intentar cargar .env local
+load_env(APP_DIR / '.env')
+
 env_model_path = os.environ.get("WEAPON_MODEL_PATH")
 candidate_paths = []
 if env_model_path:
@@ -69,10 +94,17 @@ else:
 
 pipeline = WeaponDetectionPipeline(
     weapon_model_path=weapon_model_path,
-    yolo_model_path=str(REPO_ROOT / "src" / "person_extraction" / "yolov8n.pt"),
-    confidence_threshold=0.5
+    yolo_model_path=os.environ.get("YOLO_MODEL_PATH", str(REPO_ROOT / "src" / "person_extraction" / "yolov8n.pt")),
+    confidence_threshold=float(os.environ.get("DEFAULT_CONFIDENCE", 0.5))
 )
 print("✅ Pipeline listo")
+
+# Inicializar DB y Manager de Cámaras
+database.init_db()
+ALARM_DIR = APP_DIR / 'static' / 'alarms'
+ALARM_DIR.mkdir(parents=True, exist_ok=True)
+camera_manager = CameraManager(pipeline, ALARM_DIR)
+print("✅ Sistema de Monitoreo listo")
 
 # Variable global para control de webcam
 webcam_active = False
@@ -344,5 +376,84 @@ def capture_frame():
     })
 
 
+# --- Rutas del Sistema de Monitoreo ---
+
+@app.route('/monitoring')
+def monitoring():
+    """Panel de monitoreo y configuración."""
+    return render_template('weapon_monitoring.html')
+
+@app.route('/api/cameras', methods=['GET', 'POST'])
+def handle_cameras():
+    if request.method == 'POST':
+        data = request.json
+        cam_id = database.add_camera(
+            name=data['name'],
+            source=data['source'],
+            confidence=float(data.get('confidence', 0.85)),
+            cooldown=int(data.get('cooldown', 10)),
+            consecutive_frames=int(data.get('consecutive_frames', 5))
+        )
+        # Reiniciar cámaras para aplicar cambios
+        camera_manager.reload_cameras()
+        return jsonify({'success': True, 'id': cam_id})
+    else:
+        cameras = database.get_cameras(only_enabled=False)
+        # Agregar estado de ejecución
+        for cam in cameras:
+            cam['running'] = cam['id'] in camera_manager.threads
+        return jsonify(cameras)
+
+@app.route('/api/cameras/<int:cam_id>', methods=['DELETE', 'PUT'])
+def handle_camera_item(cam_id):
+    if request.method == 'DELETE':
+        database.delete_camera(cam_id)
+        camera_manager.stop_camera(cam_id)
+        return jsonify({'success': True})
+    elif request.method == 'PUT':
+        data = request.json
+        database.update_camera(cam_id, **data)
+        camera_manager.reload_cameras()
+        return jsonify({'success': True})
+
+# Control de ejecución por cámara
+@app.route('/api/cameras/<int:cam_id>/start', methods=['POST'])
+def start_camera(cam_id):
+    database.update_camera(cam_id, enabled=1)
+    camera_manager.start_camera(cam_id)
+    return jsonify({'success': True})
+
+@app.route('/api/cameras/<int:cam_id>/stop', methods=['POST'])
+def stop_camera(cam_id):
+    database.update_camera(cam_id, enabled=0)
+    camera_manager.stop_camera(cam_id)
+    return jsonify({'success': True})
+
+@app.route('/api/alarms')
+def get_alarms():
+    alarms = database.get_alarms(limit=20)
+    return jsonify(alarms)
+
+@app.route('/api/alarms/latest')
+def check_latest_alarm():
+    last_ts = database.get_latest_alarm_timestamp()
+    return jsonify({'timestamp': last_ts})
+
+@app.route('/video_feed/<int:cam_id>')
+def video_feed(cam_id):
+    return Response(gen_frames(cam_id),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+def gen_frames(cam_id):
+    while True:
+        frame = camera_manager.get_frame(cam_id)
+        if frame:
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+        else:
+            time.sleep(0.1)
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001, threaded=True)
+    # Iniciar cámaras habilitadas al arrancar
+    camera_manager.reload_cameras()
+    app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('FLASK_RUN_PORT', 5001)), threaded=True)
