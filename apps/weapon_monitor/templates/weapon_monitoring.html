@@ -79,21 +79,45 @@
                 <div class="modal-body">
                     <form id="addCameraForm" class="mb-4 border-bottom border-secondary pb-3">
                         <h6>Agregar Nueva Cámara</h6>
-                        <div class="row g-2">
-                            <div class="col-md-3">
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-4">
                                 <input type="text" class="form-control bg-secondary text-light border-0" placeholder="Nombre" id="camName" required>
                             </div>
+                            <div class="col-md-4">
+                                <select class="form-select bg-secondary text-light border-0" id="camSourceType" onchange="toggleSourceInput()">
+                                    <option value="webcam">Webcam Local</option>
+                                    <!-- <option value="rtsp">Cámara IP (RTSP)</option>
+                                    <option value="http">Stream HTTP/MJPEG</option> -->
+                                    <option value="file">Archivo de Video</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <select class="form-select bg-secondary text-light border-0" id="camSourceWebcam">
+                                    <option value="0">Webcam 0 (Principal)</option>
+                                    <option value="1">Webcam 1</option>
+                                    <option value="2">Webcam 2</option>
+                                    <option value="3">Webcam 3</option>
+                                </select>
+                                <input type="text" class="form-control bg-secondary text-light border-0" placeholder="rtsp://usuario:clave@IP:554/stream" id="camSourceRTSP" style="display:none;">
+                                <input type="text" class="form-control bg-secondary text-light border-0" placeholder="http://IP:PORT/video" id="camSourceHTTP" style="display:none;">
+                                <input type="text" class="form-control bg-secondary text-light border-0" placeholder="/ruta/al/video.mp4" id="camSourceFile" style="display:none;">
+                            </div>
+                        </div>
+                        <div class="row g-2">
                             <div class="col-md-3">
-                                <input type="text" class="form-control bg-secondary text-light border-0" placeholder="Fuente (0, 1, URL)" id="camSource" required>
+                                <input type="number" step="0.05" class="form-control bg-secondary text-light border-0" placeholder="Confianza (0.85)" id="camConf" value="0.85" min="0.1" max="1.0">
+                                <small class="text-muted">Umbral mínimo</small>
                             </div>
-                            <div class="col-md-2">
-                                <input type="number" step="0.05" class="form-control bg-secondary text-light border-0" placeholder="Conf (0.85)" id="camConf" value="0.85">
+                            <div class="col-md-3">
+                                <input type="number" class="form-control bg-secondary text-light border-0" placeholder="Frames (5)" id="camFrames" value="5" min="1" max="20">
+                                <small class="text-muted">Frames consecutivos</small>
                             </div>
-                            <div class="col-md-2">
-                                <input type="number" class="form-control bg-secondary text-light border-0" placeholder="Frames (5)" id="camFrames" value="5">
+                            <div class="col-md-3">
+                                <input type="number" class="form-control bg-secondary text-light border-0" placeholder="Cooldown (10s)" id="camCooldown" value="10" min="5" max="60">
+                                <small class="text-muted">Espera entre alarmas</small>
                             </div>
-                            <div class="col-md-2">
-                                <button type="submit" class="btn btn-success w-100">Agregar</button>
+                            <div class="col-md-3">
+                                <button type="submit" class="btn btn-success w-100">Agregar Cámara</button>
                             </div>
                         </div>
                     </form>
@@ -210,13 +234,40 @@
             }
         }
 
+        function toggleSourceInput() {
+            const sourceType = document.getElementById('camSourceType').value;
+            document.getElementById('camSourceWebcam').style.display = sourceType === 'webcam' ? 'block' : 'none';
+            document.getElementById('camSourceRTSP').style.display = sourceType === 'rtsp' ? 'block' : 'none';
+            document.getElementById('camSourceHTTP').style.display = sourceType === 'http' ? 'block' : 'none';
+            document.getElementById('camSourceFile').style.display = sourceType === 'file' ? 'block' : 'none';
+        }
+
         async function addCamera(e) {
             e.preventDefault();
+            const sourceType = document.getElementById('camSourceType').value;
+            let source;
+            
+            switch(sourceType) {
+                case 'webcam':
+                    source = document.getElementById('camSourceWebcam').value;
+                    break;
+                case 'rtsp':
+                    source = document.getElementById('camSourceRTSP').value;
+                    break;
+                case 'http':
+                    source = document.getElementById('camSourceHTTP').value;
+                    break;
+                case 'file':
+                    source = document.getElementById('camSourceFile').value;
+                    break;
+            }
+            
             const data = {
                 name: document.getElementById('camName').value,
-                source: document.getElementById('camSource').value,
+                source: source,
                 confidence: document.getElementById('camConf').value,
-                consecutive_frames: document.getElementById('camFrames').value
+                consecutive_frames: document.getElementById('camFrames').value,
+                cooldown: document.getElementById('camCooldown').value
             };
             
             await fetch('/api/cameras', {
@@ -226,6 +277,9 @@
             });
             
             document.getElementById('addCameraForm').reset();
+            document.getElementById('camConf').value = '0.85';
+            document.getElementById('camFrames').value = '5';
+            document.getElementById('camCooldown').value = '10';
             loadCameras();
         }
 

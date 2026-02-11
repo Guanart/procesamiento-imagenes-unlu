@@ -2,6 +2,7 @@ import cv2
 import threading
 import time
 import queue
+import os
 from pathlib import Path
 from datetime import datetime
 import numpy as np
@@ -31,6 +32,13 @@ class CameraThread(threading.Thread):
         self.cooldown = camera_config['cooldown']
         self.consecutive_frames_req = camera_config['consecutive_frames']
         
+        # Parámetros de rendimiento (configurables por entorno)
+        self.stream_width = int(os.getenv('STREAM_WIDTH', '640'))
+        self.stream_height = int(os.getenv('STREAM_HEIGHT', '480'))
+        self.stream_fps = int(os.getenv('STREAM_FPS', '15'))
+        self.skip_frames = int(os.getenv('FRAME_SKIP', '4'))  # Procesar 1 de cada N+1
+        self.jpeg_quality = int(os.getenv('JPEG_QUALITY', '75'))
+        
         # Estado
         self.running = False
         self.cap = None
@@ -54,8 +62,12 @@ class CameraThread(threading.Thread):
 
         print(f"✅ Cámara iniciada: {self.name}")
         
+        # Optimización: reducir resolución para streaming más fluido
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.stream_width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.stream_height)
+        self.cap.set(cv2.CAP_PROP_FPS, self.stream_fps)
+        
         frame_count = 0
-        skip_frames = 2  # Procesar 1 de cada 3 frames (ajustable)
         
         while self.running:
             ret, frame = self.cap.read()
@@ -66,7 +78,7 @@ class CameraThread(threading.Thread):
             frame_count += 1
             
             # Inferencia solo cada N frames
-            if frame_count % (skip_frames + 1) == 0:
+            if frame_count % (self.skip_frames + 1) == 0:
                 # Copia para dibujar
                 annotated_frame = frame.copy()
                 
@@ -116,18 +128,24 @@ class CameraThread(threading.Thread):
                     self.last_detections = valid_detections
             
             else:
-                # Si saltamos frame, solo actualizamos la imagen (sin inferencia nueva)
-                # Podríamos reutilizar las detecciones anteriores para dibujar
+                # Si saltamos inferencia, enviamos frame sin procesar para mantener fluidez
                 with self.lock:
-                    if self.last_frame is not None:
-                        # Opcional: dibujar detecciones viejas en frame nuevo (tracking simple)
-                        # Por ahora, solo guardamos el frame crudo o el anterior anotado
-                        # Para streaming fluido, mejor guardar el frame actual crudo 
-                        # y superponer las últimas detecciones conocidas.
-                        pass
+                    # Reutilizar anotaciones previas sobre frame actual
+                    display_frame = frame.copy()
+                    for det in self.last_detections:
+                        wx1, wy1, wx2, wy2 = det['weapon_bbox']
+                        cv2.rectangle(display_frame, (wx1, wy1), (wx2, wy2), (0, 0, 255), 2)
+                        cv2.putText(display_frame, f"{det['weapon_class']} {det['confidence']:.2f}", 
+                                   (wx1, wy1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
                     
-            # Pequeño sleep para no saturar si el frame rate es muy alto
-            time.sleep(0.01)
+                    if self.consecutive_count > 0:
+                        cv2.putText(display_frame, f"ALERTA: {self.consecutive_count}/{self.consecutive_frames_req}", 
+                                   (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
+                    
+                    self.last_frame = display_frame
+            
+            # Sleep mínimo para no saturar CPU
+            time.sleep(0.005)
             
         self.cap.release()
         print(f"🛑 Cámara detenida: {self.name}")
@@ -183,8 +201,9 @@ class CameraThread(threading.Thread):
         with self.lock:
             if self.last_frame is None:
                 return None
-            # Codificar a JPEG para streaming
-            ret, buffer = cv2.imencode('.jpg', self.last_frame)
+            # Codificar a JPEG con compresión para reducir latencia
+            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_quality]
+            ret, buffer = cv2.imencode('.jpg', self.last_frame, encode_param)
             return buffer.tobytes() if ret else None
     
     def stop(self):
