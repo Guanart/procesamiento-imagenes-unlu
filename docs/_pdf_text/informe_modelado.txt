@@ -1,0 +1,161 @@
+Informe Final – Pipeline de Detección de Armas
+Fecha: 02/12/2025
+Alumno: Gonzalo Benito
+
+
+Resumen
+Se hizo un sistema que es capaz de detectar armas (pistol, knife) en imágenes y video. El
+pipeline actual integra:
+    -​ Extracción de personas con mejora de imagen.
+    -​ Detector de armas Faster R‑CNN MobileNetV3-FPN.
+           -​ Se ajustó el modelo utilizando scripts de split, aumentación y entrenamiento
+                con checkpoints y test.
+    -​ App para pruebas sobre archivos y cámara.
+
+
+1. Módulos
+Link de acceso al repositorio: https://github.com/Guanart/procesamiento-imagenes-unlu.
+
+
+1.1. Módulos activos
+Estos son los módulos que están en uso, tanto para el proceso de inferencia desde la app,
+como para el entrenamiento y ajuste del modelo.
+   -​ person_extraction
+          -​ Modelo: YOLOv8n para localizar y recortar las personas detectadas.
+          -​ Mejora de imagen: CLAHE + ajuste de brillo (HSV).
+   -​ weapon_detection/training
+          -​ Modelo: Faster R‑CNN (MobileNetV3 Large FPN).
+          -​ Pipeline de datos: split reproducible, aumentación offline (flip, rotación, color,
+              blur, ruido), y mejora de imagen opcional (las mismas mejoras que en el
+              módulo person_extraction).
+          -​ Entrenamiento con AMP, checkpoints cada N épocas (se guarda el .pth) y
+              reanudación desde un archivo con los pesos .pth.
+   -​ weapon_detection/inference
+          -​ detector_pipeline.py recompone las detecciones de armas dentro del
+              frame original de la persona, con anotaciones y exportación a video.
+   -​ App (apps/weapon_monitor)
+          -​ Interfaz web para cargar imagen/video o usar cámara en tiempo real. Ejecuta
+              el pipeline de inferencia y muestra resultados.
+
+
+1.2. Módulos deprecados
+Estos módulos se guardaron en la carpeta /archive, y fueron utilizados a lo largo del
+proyecto, hasta que fueron reemplazados por los anteriores.
+   1.​ weapons_classifier
+         a.​ Es un clasificador de imágenes de armas con fondos lisos, pero no resuelve
+             el problema de localizar el arma. Reemplazado por detección de objetos
+             (cajas por arma).
+         b.​ Se realizaban transformaciones simples sobre el dataset con
+             weapons_augmenter, pero las imágenes no estaban etiquetadas. El
+             resultado fue un modelo que no era útil para resolver el problema de
+             detección de armas.
+  2.​ weapons_augmenter
+         a.​ Scripts iniciales de aumentación/reportes. Integrado y mejorado en
+             training/augment_dataset.py con manejo correcto de bounding
+             boxes.
+  3.​ weapon_detection
+         a.​ Prototipos tempranos de inferencia/entrenamiento. Sustituidos por el pipeline
+             actual con AMP, checkpoints, split reproducible y métricas consistentes.
+
+
+3. Flujo del pipeline
+  1.​ Carga de modelos: YOLO para personas (CPU/GPU automático) y Faster R-CNN
+      MobileNetV3 para armas.
+  2.​ Detección de personas: por frame, YOLO produce cajas. Se filtra por
+      min_person_conf y cada recorte se clampa al frame original.
+  3.​ Mejora de recortes: enhance_image aplica CLAHE + ajuste HSV para robustecer
+      la señal antes de buscar armas.
+  4.​ Detección y clasificación de armas: el recorte mejorado se pasa a Faster R-CNN.
+      Cada predicción con score ≥ confidence_threshold devuelve clase
+      (knife/pistol), score y caja relativa.
+  5.​ Reconstrucción en frame original: las cajas de armas se trasladan usando las
+      coordenadas de la persona. Se dibuja la caja amarilla para la persona y roja para
+      cada arma detectada, junto con texto PERSON WITH WEAPON.
+  6.​ Procesamiento de video: permite frame_skip, registro de progreso y escritura
+      H.264 (ffmpeg). Cuenta detecciones totales y soporta callback externo.
+
+
+4. Datos, entrenamiento y decisiones clave
+  4.​ Checkpoints y reanudación
+         a.​ Colab Free ofrece sesiones cortas con límites diarios, cuya duración depende
+             de la demanda del servicio. Se optó por guardar el modelo cada N épocas y
+             el mejor modelo para continuar sin perder trabajo.
+  5.​ Early stopping (patience=5)
+         a.​ Detiene cuando el val loss deja de mejorar para evitar overfitting y ahorrar
+             cómputo.
+  6.​ Parser XML multi‑hilo
+         a.​ Problema: alta latencia/IOPS bajos en Google Drive → lectura secuencial era
+             muy lenta.
+         b.​ Primer intento de solución: ThreadPoolExecutor para solapar I/O y acelerar el
+             parseo masivo de XML.
+          c.​ Mejor solución (la que se utilizó): copiar un ZIP único al disco local de Colab
+              desde el disco de Google Drive, y descomprimir (más rápido que copiar miles
+              de archivos).
+                i.​ El .zip contiene el dataset ya aumentado. Esto ahorra, al menos, 30
+                     minutos de procesamiento respecto de corridas anteriores.
+   7.​ Mejora de imagen (CLAHE + brillo)
+          a.​ Aumenta contraste en recortes y ayuda a la detección de armas pequeñas o
+              en sombras.
+   8.​ AMP, batch y tamaño de imagen
+          a.​ AMP reduce memoria y mejora la velocidad. Input de 320×320 y batch 8–16
+              balancean velocidad/VRAM también.
+
+
+5. Resultados del test más reciente
+Esta      es   la   salida   del   script   test_light_model.py,       que   utilizó   el     script
+split_dataset.py para separar los datos, utilizando la misma semilla (seed) que se
+utilizó cuando se separaron los datos para el entrenamiento del modelo. Esta característica
+es importante para poder volver a separar los datos de la misma forma que se hizo en el
+pasado. La salida del test se persiste en el archivo test_metrics.json.
+
+
+Matriz de confusión
+ Real \ Predict                    background                 knife                         pistol
+
+ background                                    0                 74                           241
+
+ knife                                        88              1143                             17
+
+ pistol                                       78                   3                        1968
+
+
+El background representa:
+    1.​ Falsos positivos: detecciones donde no debería haber nada.
+    2.​ Regiones negativas: áreas de la imagen sin objetos de interés.
+
+Entonces, la interpretación de la clase background
+   1.​ background→knife: El modelo predijo "knife" donde no había nada anotado.
+           a.​ O al revés también, el modelo no predijo nada cuando había un cuchillo.
+   2.​ background→pistol: El modelo predijo "pistol" donde no había nada anotado.
+           a.​ O al revés también, el modelo no predijo nada cuando había una pistola.
+
+Métricas de precisión (a partir de la matriz)
+   1.​ knife: TP=1143, FP=77, FN=105 → Precision≈0.936, Recall≈0.916
+   2.​ pistol: TP=1968, FP=258, FN=81 → Precision≈0.884, Recall≈0.960
+
+
+Métricas de precisión
+   1.​ mAP: 0.6199
+   2.​ mAP@50: 0.9480
+         a.​ Esta métrica es muy buena: cuando se llega al 0.5 de recall, se alcanza una
+             precisión muy alta, que luego va decayendo a medida que aumenta el recall.
+   3.​ mAP@75: 0.6421
+   4.​ mAP (small/medium/large): 0.4212 / 0.5173 / 0.6450
+
+
+6. Resultados de la anteúltima ejecución del entrenamiento
+Se incluye el gráfico de la anteúltima corrida completa (válido como referencia histórica
+mientras generamos el del último modelo).
+
+
+
+
+Interpretación: train loss desciende mientras que val loss tiende a subir → hay riesgo de
+overfitting; mAP se estabiliza en ~0.55–0.57 y mAP@50 en ~0.88–0.89 en cada época.
+Resultados del modelo en videos
+
+
+
+
+  -​   Cuando la pistola se encuentra de costado, la confunde con un cuchillo.
+

@@ -119,8 +119,9 @@ class WeaponDetectionDataset(Dataset):
             if not res:
                 continue
             fname, boxes = res
-            if not fname or not boxes:
+            if not fname:
                 continue
+            # Permitir samples sin cajas (hard negatives)
             
             img_path = self._resolve_image(fname)
             if img_path:
@@ -166,6 +167,19 @@ class WeaponDetectionDataset(Dataset):
         img = img.to(torch.float32) / 255.0
 
         # --- Ajuste de las Bounding Boxes ---
+        # Soportar imágenes sin cajas (hard negatives)
+        if len(boxes_data) == 0:
+            boxes = torch.zeros((0, 4), dtype=torch.float32)
+            labels = torch.zeros((0,), dtype=torch.int64)
+            target = {
+                "boxes": boxes,
+                "labels": labels,
+                "image_id": torch.tensor([idx]),
+                "area": torch.zeros((0,), dtype=torch.float32),
+                "iscrowd": torch.zeros((0,), dtype=torch.int64),
+            }
+            return img, target
+        
         boxes = torch.tensor([b[1:] for b in boxes_data], dtype=torch.float32)
 
         # Calcular factores de escala
