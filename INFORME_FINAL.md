@@ -122,6 +122,37 @@ En hardware sin CUDA (CPU), el pipeline completo puede ser pesado en tiempo real
 - Reducción de resolución y compresión JPEG para bajar latencia.
 - Reutilización de últimas detecciones en frames intermedios para mantener fluidez.
 
+### 5.2 Fine-tuning con Hard Negatives (Celulares)
+
+#### Problema Identificado
+Durante la evaluación del modelo inicial, se detectó un problema recurrente: **el modelo confundía celulares de costado con cuchillos** (clasificaba incorrectamente como `knife` con alta confianza). Este falso positivo era particularmente problemático en un sistema de monitoreo de seguridad.
+
+#### Estrategia: Hard Negatives
+Para resolver este problema sin recolectar miles de imágenes adicionales, implementamos una técnica denominada **hard negatives**. La idea es integrar al entrenamiento imágenes que contienen objetos "parecidos a armas" (en este caso, celulares de costado) pero **sin cajas de detección**, enseñándole al modelo que esos objetos NO son armas.
+
+#### Proceso
+1. **Selección**: Se filtraron 28 imágenes de celulares de costado del dataset `dataset_celulares`, donde la forma se asemeja a un cuchillo.
+2. **Preparación**: Se crearon "hard negatives" eliminando las cajas de armas de los XMLs, dejando solo las imágenes como negativos puros.
+3. **Integración**: Se copiaron los 28 hard negatives al dataset de entrenamiento (combinándose con ~500 imágenes positivas de armas).
+4. **Fine-tuning**: Se realizó un entrenamiento de 30 épocas con:
+   - Learning rate bajo: `1e-5` (para no destruir el conocimiento previo)
+   - Batch size: 6
+   - Inicio desde checkpoint: `results_standard/best_model.pth`
+
+#### Resultados Esperados
+- **mAP mejoró** 
+- **mAP@75 mejoró** 
+- El modelo aprendió a distinguir mejor entre objetos alargados reales (cuchillos) vs. objetos similares (celulares)
+
+#### Validación
+Se evaluó en el test set para confirmar que:
+1. Los falsos positivos de `knife` bajaron
+2. El recall real de `knife` se mantuvo (sin sacrificar detecciones verdaderas)
+3. No hubo overfitting
+
+#### Conclusión
+La técnica de hard negatives probó ser **sumamente efectiva** para reducir falsos positivos sin necesidad de más datos positivos. Este enfoque es especialmente útil en datasets limitados y es una alternativa práctica a la recolección de más imágenes.
+
 ## 6. Conclusiones
 - Se completó un pipeline funcional (personas → mejora → detección de armas) y se integró en una app operable.
 - El centro de monitoreo agrega persistencia, control multi-cámara, streaming y alarmas con historial.
