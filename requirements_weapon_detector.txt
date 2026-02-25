@@ -1,0 +1,9 @@
+ultralytics>=8.0.0
+# Este archivo se conserva por compatibilidad con los scripts antiguos.
+# Los requerimientos reales ahora viven en la carpeta `requirements/`:
+#   - requirements/base.txt        → inferencia/pipeline
+#   - requirements/training.txt    → entrenamiento completo
+#   - requirements/apps/*.txt      → aplicaciones Flask
+#
+# Para reproducir el entorno anterior basta con ejecutar:
+-r requirements/base.txt

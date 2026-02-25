@@ -1,0 +1,64 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation
+*.md
+docs/
+
+# Tests
+tests/
+test_*.py
+*_test.py
+
+# Datasets (grandes)
+dataset/images/*
+dataset/xmls/*
+!dataset/test/
+
+# Uploads y resultados temporales
+apps/image_lab/uploads/*
+apps/weapon_monitor/uploads/*
+apps/weapon_monitor/results/*
+!apps/image_lab/uploads/.gitkeep
+!apps/weapon_monitor/uploads/.gitkeep
+!apps/weapon_monitor/results/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Otros scripts no necesarios en producción
+*.sh
+*.bat
+!start_docker_weapons.sh
+!start_docker_weapons.bat
+
+# Archivos temporales
+*.tmp
+*.bak
+*.swp
+temp/

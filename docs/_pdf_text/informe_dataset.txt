@@ -1,0 +1,72 @@
+Informe Dataset - Detección de Armas
+Alumno: Gonzalo Benito
+
+
+Objetivo
+Implementar un pipeline completo de procesamiento de imágenes para detección de armas
+de fuego y armas blancas, integrando etapas de extracción y mejora de imágenes de
+personas, y aumentación del dataset de armas.
+
+
+Fuentes y repositorio del código
+   ●​ Repositorio del proyecto: https://github.com/Guanart/procesamiento-imagenes-unlu
+   ●​ Dataset: OD-WeaponDetection (DaSCI)
+
+
+Estructura del proyecto
+El repositorio organiza los distintos módulos en directorios separados:
+    ●​ person_extraction/ — módulo de extracción y mejora de imágenes de personas
+       desde video (Stage 1).
+    ●​ weapons_augmenter/ — módulo de aumentación del dataset de armas (Stage 2).
+
+
+Pipeline
+Stage 1 – Extracción de personas
+Se empleó el dataset OD-WeaponDetection, compuesto por ~3000 imágenes de personas
+portando     armas     en    el  directorio   “Weapons     and      similar handled
+objects\Sohas_weapon-Detection-YOLOv5\obj_train_data\images\train”.
+
+El script principal person_extraction/video_processor.py procesa videos, realiza
+muestreo a ~1 fps y detecta personas con YOLOv8n (preentrenado en COCO), filtrando
+únicamente la clase “persona”.
+
+Luego, person_extraction/image_enhancer.py aplica una mejora de contraste y
+brillo de las imágenes de personas armadas del dataset DaSCI (que también se aplicarán
+para los recortes obtenidos de video_processor.py):
+
+   1.​ Redimensión de la imagen manteniendo aspect ratio, usando interpolación
+       spline cúbica para aquellas imágenes cuyas dimensiones sean inferiores a 200px
+       de altura y 100px de ancho. El resultado fue un dataset con imágenes de resolución
+       variable.
+   2.​ Aplicación de CLAHE sobre el canal L para mejorar el contraste.
+   3.​ Mejora el brillo de la imagen aumentando el canal V en HSV.
+
+
+
+                                                                                         1
+                    Ejemplo de imagen redimensionada y mejorada.
+
+Stage 2 – Detección de armas
+Se emplearon las imágenes de             los   directorios   “classification”   del   dataset
+OD-WeaponDetection, compuestos por:
+
+   ●​ Pistolas: 795 imágenes.
+          ○​ También hay ~4000 imágenes en directorio​
+              “Weapons and similar handled objects\Sohas_weapon-Classification\pistol”
+   ●​ Cuchillos: 635 imágenes.
+          ○​ También hay ~2300 imágenes en directorio​
+              “Weapons and similar handled objects\Sohas_weapon-Classification\knife”
+
+El módulo de aumentación weapons_augmenter/simple_augmenter.py cuadruplica el
+dataset (1.430 → 5720 imágenes) mediante transformaciones geométricas simples para
+aumentar la variabilidad y mejorar la generalización del modelo:
+
+   ●​ Flip horizontal.
+   ●​ Flip vertical.
+   ●​ Rotación de 90°.
+
+
+
+
+                                                                                           2
+

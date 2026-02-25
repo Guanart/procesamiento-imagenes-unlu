@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  image-lab:
+    build:
+      context: .
+      dockerfile: apps/image_lab/Dockerfile
+    container_name: image-lab
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./apps/image_lab/uploads:/app/uploads
+      - ./apps/image_lab/templates:/app/templates
+    environment:
+      - FLASK_ENV=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - app-net
+
+  weapon-monitor:
+    build:
+      context: .
+      dockerfile: apps/weapon_monitor/Dockerfile
+    container_name: weapon-monitor
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./apps/weapon_monitor/uploads/weapons:/app/apps/weapon_monitor/uploads/weapons
+      - ./apps/weapon_monitor/results/weapons:/app/apps/weapon_monitor/results/weapons
+      - ./models/weapon_detection/best_model.pth:/app/models/best_model.pth:ro
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+      - WEAPON_MODEL_PATH=/app/models/best_model.pth
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-net
+
+networks:
+  app-net:
+    driver: bridge
