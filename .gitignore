@@ -1,16 +1,11 @@
 .history
-**/*dataset*/
+dataset
 input
 output
 #teoria
-*.pth
-*.zip
 custom_env
 .venv
 image-transform-app/
-**/*result*
-**/*prediction*
-apps/weapon_monitor/static/alarms/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
